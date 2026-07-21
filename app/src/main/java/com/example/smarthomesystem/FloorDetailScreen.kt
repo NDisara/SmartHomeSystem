@@ -18,12 +18,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import java.util.Calendar
+import kotlinx.coroutines.delay
 
 @Composable
 fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
@@ -37,7 +38,6 @@ fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        // ---- Background Floor Plan Image ----
         Image(
             painter = painterResource(id = R.drawable.floor1),
             contentDescription = "Floor plan background",
@@ -45,14 +45,12 @@ fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
             contentScale = ContentScale.Crop
         )
 
-        // ---- Semi-transparent overlay for readability ----
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.45f))
         )
 
-        // ---- Foreground content (devices) ----
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 text = "Floor: $floorId",
@@ -106,7 +104,7 @@ fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
         }
     }
 
-    // ---- Safety cutoff check ----
+    // ---- Safety cutoff check (Iron) ----
     LaunchedEffect(devices) {
         devices.forEach { device ->
             if (device.type == "iron" && device.state == "ON" && device.maxDurationSec > 0) {
@@ -118,22 +116,65 @@ fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
             }
         }
     }
+
+    // ---- Auto-scheduled lights check (runs every 30 seconds) ----
+    LaunchedEffect(devices) {
+        while (true) {
+            val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+            devices.forEach { device ->
+                if (device.type == "outlet" && device.scheduleEnabled) {
+                    val shouldBeOn = if (device.scheduleStartHour <= device.scheduleEndHour) {
+                        currentHour in device.scheduleStartHour until device.scheduleEndHour
+                    } else {
+                        // handles overnight schedules e.g. 22 -> 6
+                        currentHour >= device.scheduleStartHour || currentHour < device.scheduleEndHour
+                    }
+
+                    val targetState = if (shouldBeOn) "ON" else "OFF"
+                    if (device.state != targetState) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                    }
+                }
+            }
+            delay(30000) // check every 30 seconds
+        }
+    }
 }
 
 @Composable
 fun DeviceSlot(device: Device, onClick: () -> Unit) {
-    val bgColor = if (device.state == "ON") Color(0xFFA5D6A7) else Color(0xFFE0E0E0)
+    val bgColor = when (device.state) {
+        "ON" -> Color(0xFFA5D6A7)
+        "OFF" -> Color(0xFFE0E0E0)
+        "ERROR" -> Color(0xFFEF9A9A)
+        "DISCONNECTED" -> Color(0xFFBDBDBD)
+        else -> Color(0xFFE0E0E0)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(vertical = 8.dp)
             .background(bgColor, RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .clickable(enabled = device.state != "ERROR" && device.state != "DISCONNECTED") { onClick() }
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(text = device.name, style = MaterialTheme.typography.bodyMedium)
             Text(text = device.state, style = MaterialTheme.typography.labelSmall)
+            if (device.scheduleEnabled) {
+                Text(
+                    text = "⏰ ${device.scheduleStartHour}:00 - ${device.scheduleEndHour}:00",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+            if (device.state == "ERROR") {
+                Text(text = "⚠️ Device error", style = MaterialTheme.typography.labelSmall, color = Color.Red)
+            }
+            if (device.state == "DISCONNECTED") {
+                Text(text = "📡 Offline", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray)
+            }
         }
     }
 }

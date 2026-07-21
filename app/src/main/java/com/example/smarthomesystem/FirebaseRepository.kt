@@ -26,8 +26,12 @@ object FirebaseRepository {
     }
 
     // ---------- DEVICES ----------
-    fun listenToDevices(floorId: String, onDataChanged: (List<Device>) -> Unit) {
+    fun listenToDevices(
+        floorId: String,
+        onDataChanged: (List<Device>) -> Unit
+    ) {
         val devicesRef = database.getReference("floors/$floorId/devices")
+
         devicesRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val devices = mutableListOf<Device>()
@@ -39,27 +43,35 @@ object FirebaseRepository {
                     val maxDurationSec = child.child("maxDurationSec").getValue(Int::class.java) ?: 0
                     val turnedOnAt = child.child("turnedOnAt").getValue(Long::class.java) ?: 0L
                     val streamUrl = child.child("streamUrl").getValue(String::class.java) ?: ""
+                    val scheduleEnabled = child.child("scheduleEnabled").getValue(Boolean::class.java) ?: false
+                    val scheduleStartHour = child.child("scheduleStartHour").getValue(Int::class.java) ?: 0
+                    val scheduleEndHour = child.child("scheduleEndHour").getValue(Int::class.java) ?: 0
 
+                    val switchesSnapshot = child.child("switches")
                     val switches = mutableMapOf<String, String>()
-                    for (sw in child.child("switches").children) {
+                    for (sw in switchesSnapshot.children) {
                         val swId = sw.key ?: continue
-                        switches[swId] = sw.getValue(String::class.java) ?: "OFF"
+                        val swState = sw.getValue(String::class.java) ?: "OFF"
+                        switches[swId] = swState
                     }
 
                     devices.add(
                         Device(
                             id = id, name = name, type = type, state = state,
                             switches = switches, maxDurationSec = maxDurationSec,
-                            turnedOnAt = turnedOnAt, streamUrl = streamUrl
+                            turnedOnAt = turnedOnAt, streamUrl = streamUrl,
+                            scheduleEnabled = scheduleEnabled,
+                            scheduleStartHour = scheduleStartHour,
+                            scheduleEndHour = scheduleEndHour
                         )
                     )
                 }
                 onDataChanged(devices)
             }
+
             override fun onCancelled(error: DatabaseError) {}
         })
     }
-
     fun updateDeviceState(floorId: String, deviceId: String, newState: String, turnedOnAt: Long = 0L) {
         val deviceRef = database.getReference("floors/$floorId/devices/$deviceId")
         deviceRef.child("state").setValue(newState)
