@@ -1,136 +1,494 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Smart Home Hardware Simulator</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #1e1e1e;
-            color: #f0f0f0;
-            padding: 20px;
-        }
-        h1 {
-            color: #64b5f6;
-        }
-        .device-card {
-            background: #2c2c2c;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
-            border-left: 6px solid #888;
-            transition: 0.3s;
-        }
-        .device-card.on {
-            border-left-color: #4caf50;
-            background: #24331f;
-        }
-        .device-card.off {
-            border-left-color: #757575;
-        }
-        .device-name {
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .device-state {
-            font-size: 14px;
-            margin-top: 4px;
-            color: #ccc;
-        }
-        .switch-row {
-            margin-top: 8px;
-            padding: 6px 10px;
-            background: #3a3a3a;
-            border-radius: 6px;
-            display: inline-block;
-            margin-right: 8px;
-        }
-        #status {
-            margin-bottom: 20px;
-            padding: 10px;
-            border-radius: 6px;
-            background: #333;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Smart Home Hardware Simulator</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    background:#1e1e1e;
+    color:#fff;
+    padding:25px;
+}
+
+h1{
+    color:#64b5f6;
+    margin-bottom:20px;
+}
+
+#status{
+    background:#2f2f2f;
+    padding:12px;
+    border-radius:8px;
+    margin-bottom:25px;
+    font-weight:bold;
+}
+
+.floor-title{
+    margin-top:25px;
+    margin-bottom:15px;
+    color:#90caf9;
+    border-bottom:2px solid #555;
+    padding-bottom:6px;
+}
+
+.device-card{
+
+    background:#2b2b2b;
+    border-left:6px solid gray;
+    border-radius:10px;
+    padding:15px;
+    margin-bottom:15px;
+    transition:.3s;
+
+}
+
+.device-card.on{
+
+    border-left-color:#4CAF50;
+    background:#233523;
+
+}
+
+.device-card.off{
+
+    border-left-color:#777;
+
+}
+
+.device-name{
+
+    font-size:18px;
+    font-weight:bold;
+    margin-bottom:10px;
+
+}
+
+.device-type{
+
+    color:#bbb;
+    margin-bottom:10px;
+
+}
+
+.device-state{
+
+    margin-top:10px;
+
+}
+
+.switch-container{
+
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:10px;
+
+}
+
+.switch{
+
+    position:relative;
+    display:inline-block;
+    width:60px;
+    height:34px;
+
+}
+
+.switch input{
+
+    opacity:0;
+    width:0;
+    height:0;
+
+}
+
+.slider{
+
+    position:absolute;
+    cursor:pointer;
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+    background:#888;
+    transition:.4s;
+    border-radius:34px;
+
+}
+
+.slider:before{
+
+    position:absolute;
+    content:"";
+    height:26px;
+    width:26px;
+    left:4px;
+    bottom:4px;
+    background:white;
+    transition:.4s;
+    border-radius:50%;
+
+}
+
+input:checked + .slider{
+
+    background:#4CAF50;
+
+}
+
+input:checked + .slider:before{
+
+    transform:translateX(26px);
+
+}
+
+.multi-row{
+
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:10px;
+    padding:8px;
+    background:#3b3b3b;
+    border-radius:6px;
+
+}
+
+.camera{
+
+    margin-top:10px;
+    color:#8bc34a;
+}
+
+.iron{
+
+    margin-top:10px;
+    color:#ffc107;
+}
+
+</style>
 </head>
+
 <body>
 
 <h1>🏠 Smart Home Hardware Simulator</h1>
-<div id="status">Connecting to Firebase...</div>
+
+<div id="status">
+Connecting to Firebase...
+</div>
+
 <div id="devices"></div>
 
-<!-- Firebase SDK (CDN) -->
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCY0NJZ7Z2Bh6eRVvk4OhCMpa-rdbeQ1Gw",
-        authDomain: "smarthomesystem-70abf.firebaseapp.com",
-        databaseURL: "https://smarthomesystem-70abf-default-rtdb.firebaseio.com",
-        projectId: "smarthomesystem-70abf",
-        storageBucket: "smarthomesystem-70abf.firebasestorage.app",
-        messagingSenderId: "870635457059",
-        appId: "1:870635457059:web:45e3a3c2dcfd754e577f96"
-    };
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+import {
 
-    const statusDiv = document.getElementById("status");
-    const devicesDiv = document.getElementById("devices");
+getDatabase,
+ref,
+onValue,
+update
 
-    // Listen to ALL floors and their devices
-    const floorsRef = ref(db, "floors");
+}
 
-    onValue(floorsRef, (snapshot) => {
-        statusDiv.textContent = "✅ Connected — Live data from Firebase";
-        devicesDiv.innerHTML = "";
+from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
-        const floorsData = snapshot.val();
-        if (!floorsData) {
-            devicesDiv.innerHTML = "<p>No floor data found.</p>";
-            return;
-        }
+const firebaseConfig={
 
-        Object.keys(floorsData).forEach((floorId) => {
-            const floor = floorsData[floorId];
-            const devices = floor.devices || {};
+apiKey:"AIzaSyCY0NJZ7Z2Bh6eRVvk4OhCMpa-rdbeQ1Gw",
 
-            const floorHeader = document.createElement("h2");
-            floorHeader.textContent = "Floor: " + floorId;
-            devicesDiv.appendChild(floorHeader);
+authDomain:"smarthomesystem-70abf.firebaseapp.com",
 
-            Object.keys(devices).forEach((deviceId) => {
-                const device = devices[deviceId];
-                const card = document.createElement("div");
-                const isOn = device.state === "ON";
-                card.className = "device-card " + (isOn ? "on" : "off");
+databaseURL:"https://smarthomesystem-70abf-default-rtdb.firebaseio.com",
 
-                let innerHTML = `<div class="device-name">${device.name || deviceId} (${device.type || "unknown"})</div>`;
+projectId:"smarthomesystem-70abf",
 
-                if (device.type === "multiswitch" && device.switches) {
-                    innerHTML += `<div class="device-state">Switches:</div>`;
-                    Object.keys(device.switches).forEach((swId) => {
-                        const swState = device.switches[swId];
-                        innerHTML += `<span class="switch-row">${swId}: ${swState}</span>`;
-                    });
-                } else if (device.type === "camera") {
-                    innerHTML += `<div class="device-state">📷 Streaming (mock): ${device.streamUrl || "N/A"}</div>`;
-                } else {
-                    innerHTML += `<div class="device-state">State: ${device.state || "OFF"}</div>`;
-                    if (device.type === "iron" && device.maxDurationSec) {
-                        innerHTML += `<div class="device-state">Max duration: ${device.maxDurationSec / 60} min</div>`;
-                    }
-                }
+storageBucket:"smarthomesystem-70abf.firebasestorage.app",
 
-                card.innerHTML = innerHTML;
-                devicesDiv.appendChild(card);
-            });
-        });
-    }, (error) => {
-        statusDiv.textContent = "❌ Connection error: " + error.message;
-    });
+messagingSenderId:"870635457059",
+
+appId:"1:870635457059:web:45e3a3c2dcfd754e577f96"
+
+};
+
+const app=initializeApp(firebaseConfig);
+
+const db=getDatabase(app);
+
+const devicesDiv=document.getElementById("devices");
+
+const status=document.getElementById("status");
+
+const floorsRef=ref(db,"floors");
+
+onValue(floorsRef,(snapshot)=>{
+
+status.innerHTML="✅ Connected - Live Synchronization Enabled";
+
+devicesDiv.innerHTML="";
+
+const floors=snapshot.val();
+
+if(!floors){
+
+devicesDiv.innerHTML="<h2>No Devices Found</h2>";
+
+return;
+
+}
+
+Object.keys(floors).forEach(floorId=>{
+
+const floorTitle=document.createElement("h2");
+
+floorTitle.className="floor-title";
+
+floorTitle.innerHTML="🏢 "+floorId;
+
+devicesDiv.appendChild(floorTitle);
+
+const devices=floors[floorId].devices || {};
+
+Object.keys(devices).forEach(deviceId=>{
+
+const device=devices[deviceId];
+
+const card=document.createElement("div");
+
+card.className="device-card "+(device.state==="ON"?"on":"off");
+
+let html="";
+
+html+=`
+<div class="device-name">
+
+${device.name || deviceId}
+
+</div>
+
+<div class="device-type">
+
+Type : ${device.type}
+
+</div>
+`;
+// ----------- Normal Devices --------------
+
+if(device.type !== "multiswitch" && device.type !== "camera"){
+
+const checked = device.state==="ON" ? "checked" : "";
+
+html += `
+
+<div class="switch-container">
+
+<span>Status : <b>${device.state || "OFF"}</b></span>
+
+<label class="switch">
+
+<input
+
+type="checkbox"
+
+class="deviceToggle"
+
+data-floor="${floorId}"
+
+data-device="${deviceId}"
+
+${checked}
+
+>
+
+<span class="slider"></span>
+
+</label>
+
+</div>
+
+`;
+
+if(device.type==="iron" && device.maxDurationSec){
+
+html += `
+
+<div class="iron">
+
+⏱ Auto OFF :
+${device.maxDurationSec/60} Minutes
+
+</div>
+
+`;
+
+}
+
+}
+
+// ------------ Camera ----------------
+
+if(device.type==="camera"){
+
+html += `
+
+<div class="camera">
+
+📷 Camera Streaming
+
+<br>
+
+${device.streamUrl || "No Stream URL"}
+
+</div>
+
+`;
+
+}
+
+// ------------ Multi Switch ------------
+
+if(device.type==="multiswitch"){
+
+html += `
+
+<div class="device-state">
+
+<b>Individual Switches</b>
+
+</div>
+
+`;
+
+Object.keys(device.switches || {}).forEach(sw=>{
+
+const checked=device.switches[sw]=="ON"?"checked":"";
+
+html+=`
+
+<div class="multi-row">
+
+<span>${sw}</span>
+
+<label class="switch">
+
+<input
+
+type="checkbox"
+
+class="multiToggle"
+
+data-floor="${floorId}"
+
+data-device="${deviceId}"
+
+data-switch="${sw}"
+
+${checked}
+
+>
+
+<span class="slider"></span>
+
+</label>
+
+</div>
+
+`;
+
+});
+
+}
+
+card.innerHTML=html;
+
+devicesDiv.appendChild(card);
+
+});
+
+});
+
+// ---------------- Device Toggle ----------------
+
+document.querySelectorAll(".deviceToggle").forEach(toggle=>{
+
+toggle.addEventListener("change",async function(){
+
+const floor=this.dataset.floor;
+
+const device=this.dataset.device;
+
+const state=this.checked?"ON":"OFF";
+
+await update(
+
+ref(db,`floors/${floor}/devices/${device}`),
+
+{
+
+state:state
+
+}
+
+);
+
+});
+
+});
+
+// ---------------- Multi Switch Toggle ----------------
+
+document.querySelectorAll(".multiToggle").forEach(toggle=>{
+
+toggle.addEventListener("change",async function(){
+
+const floor=this.dataset.floor;
+
+const device=this.dataset.device;
+
+const sw=this.dataset.switch;
+
+const state=this.checked?"ON":"OFF";
+
+await update(
+
+ref(db,
+
+`floors/${floor}/devices/${device}/switches`
+
+),
+
+{
+
+[sw]:state
+
+}
+
+);
+
+});
+
+});
+
+},
+(error)=>{
+
+status.innerHTML="❌ Connection Error : " + error.message;
+
+});
+
 </script>
 
 </body>
