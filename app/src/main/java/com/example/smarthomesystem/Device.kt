@@ -3,13 +3,13 @@ package com.example.smarthomesystem
 data class Device(
     val id: String = "",
     val name: String = "",
-    val type: String = "",
-    val state: String = "OFF",
-    val switches: Map<String, String> = emptyMap(),
-    val maxDurationSec: Int = 0,
-    val turnedOnAt: Long = 0L,
-    val streamUrl: String = "",
-    val scheduleEnabled: Boolean = false,   // light auto-schedule on/off
-    val scheduleStartHour: Int = 0,         // 0-23 (24hr format)
-    val scheduleEndHour: Int = 0            // 0-23
+    val type: String = "",       // "outlet", "multiswitch", "iron", "camera", "light"
+    val state: String = "OFF",   // "ON", "OFF", "ERROR", "DISCONNECTED"
+    val switches: Map<String, String> = emptyMap(), // For multiswitch: {"sw1": "ON", "sw2": "OFF"}
+    val maxDurationSec: Int = 0, // For iron: maximum allowed time ON
+    val turnedOnAt: Long = 0L,   // Timestamp when turned ON
+    val streamUrl: String = "",  // For camera
+    val scheduleOn: String? = null,  // Format "HH:mm"
+    val scheduleOff: String? = null, // Format "HH:mm"
+    val floorId: String = ""
 )

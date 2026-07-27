@@ -1,113 +1,100 @@
 package com.example.smarthomesystem
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Calendar
-import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.sp
+import com.example.smarthomesystem.ui.theme.*
 
 @Composable
-fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
+fun FloorDetailScreen(
+    floorId: String,
+    modifier: Modifier = Modifier,
+    onDeviceClick: (String) -> Unit
+) {
     var devices by remember { mutableStateOf<List<Device>>(emptyList()) }
+    var floorName by remember { mutableStateOf("Loading...") }
 
     LaunchedEffect(floorId) {
+        FirebaseRepository.listenToFloors { floors ->
+            floorName = floors.find { it.id == floorId }?.name ?: "Unknown Floor"
+        }
         FirebaseRepository.listenToDevices(floorId) { updatedDevices ->
             devices = updatedDevices
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-
-        Image(
-            painter = painterResource(id = R.drawable.floor1),
-            contentDescription = "Floor plan background",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp)
+    ) {
+        Text(
+            text = floorName,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
+        Text(text = "grid overlay", color = SecondaryText, fontSize = 12.sp)
 
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Abstract Grid Mapping Overlaid onto Floor Layout
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f))
-        )
+                .fillMaxWidth()
+                .height(250.dp)
+                .background(CardBackground, RoundedCornerShape(24.dp))
+                .padding(16.dp)
+        ) {
+            // Stylized abstract "floor plan" elements
+            Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)))
+            
+            // Map devices to grid points based on their index for demo
+            devices.forEachIndexed { index, device ->
+                val alignment = when (index % 4) {
+                    0 -> Alignment.TopStart
+                    1 -> Alignment.TopEnd
+                    2 -> Alignment.BottomStart
+                    else -> Alignment.BottomEnd
+                }
+                
+                DeviceGridNode(
+                    device = device,
+                    modifier = Modifier.align(alignment).padding(16.dp),
+                    onClick = { onDeviceClick(device.id) }
+                )
+            }
+        }
 
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text(
-                text = "Floor: $floorId",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+        Spacer(modifier = Modifier.height(32.dp))
 
-            if (devices.isEmpty()) {
-                Text(text = "Loading devices...", color = Color.White)
-            } else {
-                LazyColumn {
-                    items(devices) { device ->
-                        when (device.type) {
-                            "multiswitch" -> MultiSwitchCard(
-                                device = device,
-                                onSwitchToggle = { switchId ->
-                                    val current = device.switches[switchId] ?: "OFF"
-                                    val newState = if (current == "ON") "OFF" else "ON"
-                                    FirebaseRepository.updateSwitchState(floorId, device.id, switchId, newState)
-                                    FirebaseRepository.logUsage(device.id, "${device.name} ($switchId)", newState)
-                                }
-                            )
-                            "iron" -> IronCard(
-                                device = device,
-                                onToggle = {
-                                    if (device.state == "ON") {
-                                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
-                                        FirebaseRepository.logUsage(device.id, device.name, "OFF")
-                                    } else {
-                                        FirebaseRepository.updateDeviceState(
-                                            floorId, device.id, "ON", System.currentTimeMillis()
-                                        )
-                                        FirebaseRepository.logUsage(device.id, device.name, "ON")
-                                    }
-                                }
-                            )
-                            "camera" -> CameraCard(device = device)
-                            else -> DeviceSlot(
-                                device = device,
-                                onClick = {
-                                    val newState = if (device.state == "ON") "OFF" else "ON"
-                                    FirebaseRepository.updateDeviceState(floorId, device.id, newState)
-                                    FirebaseRepository.logUsage(device.id, device.name, newState)
-                                }
-                            )
-                        }
-                    }
+        if (devices.isEmpty()) {
+            Text(text = "No devices in this floor.", color = SecondaryText)
+        } else {
+            LazyColumn {
+                items(devices) { device ->
+                    DeviceRow(device = device, onClick = { onDeviceClick(device.id) })
                 }
             }
         }
     }
-
-    // ---- Safety cutoff check (Iron) ----
+    
+    // Client-side Safety Cutoff Simulation
     LaunchedEffect(devices) {
         devices.forEach { device ->
-            if (device.type == "iron" && device.state == "ON" && device.maxDurationSec > 0) {
+            if (device.type == "iron" && device.state == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
                 val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
                 if (elapsed >= device.maxDurationSec) {
                     FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
@@ -144,37 +131,68 @@ fun FloorDetailScreen(floorId: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun DeviceSlot(device: Device, onClick: () -> Unit) {
-    val bgColor = when (device.state) {
-        "ON" -> Color(0xFFA5D6A7)
-        "OFF" -> Color(0xFFE0E0E0)
-        "ERROR" -> Color(0xFFEF9A9A)
-        "DISCONNECTED" -> Color(0xFFBDBDBD)
-        else -> Color(0xFFE0E0E0)
+fun DeviceGridNode(device: Device, modifier: Modifier, onClick: () -> Unit) {
+    val color = when (device.state) {
+        "ON" -> StatusGreen
+        "ERROR" -> StatusRed
+        "DISCONNECTED" -> Color.Gray
+        else -> SecondaryText
+    }
+    
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .background(color.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(12.dp)
+                .background(color, RoundedCornerShape(2.dp))
+        )
+    }
+}
+
+@Composable
+fun DeviceRow(device: Device, onClick: () -> Unit) {
+    val statusText = when {
+        device.type == "camera" -> "streaming"
+        device.state == "ON" -> "on"
+        device.state == "OFF" -> "off"
+        else -> device.state.lowercase()
     }
 
-    Box(
+    val statusColor = when (statusText) {
+        "on" -> StatusGreen
+        "error" -> StatusRed
+        "streaming" -> StatusBlue
+        "off" -> SecondaryText
+        else -> SecondaryText
+    }
+
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp)
-            .background(bgColor, RoundedCornerShape(8.dp))
-            .clickable(enabled = device.state != "ERROR" && device.state != "DISCONNECTED") { onClick() }
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = device.name, style = MaterialTheme.typography.bodyMedium)
-            Text(text = device.state, style = MaterialTheme.typography.labelSmall)
-            if (device.scheduleEnabled) {
-                Text(
-                    text = "⏰ ${device.scheduleStartHour}:00 - ${device.scheduleEndHour}:00",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-            if (device.state == "ERROR") {
-                Text(text = "⚠️ Device error", style = MaterialTheme.typography.labelSmall, color = Color.Red)
-            }
-            if (device.state == "DISCONNECTED") {
-                Text(text = "📡 Offline", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray)
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = device.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White
+            )
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = statusColor
+            )
         }
+        Divider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
     }
 }
