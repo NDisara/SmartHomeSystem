@@ -41,7 +41,6 @@ object FirebaseRepository {
             }
         })
     }
-
     fun updateDeviceState(floorId: String, deviceId: String, newState: String, turnedOnAt: Long = 0L) {
         val ref = database.getReference("floors/$floorId/devices/$deviceId")
         val updates = mutableMapOf<String, Any>("state" to newState)

@@ -103,6 +103,31 @@ fun FloorDetailScreen(
             }
         }
     }
+
+    // ---- Auto-scheduled lights check (runs every 30 seconds) ----
+    LaunchedEffect(devices) {
+        while (true) {
+            val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+            devices.forEach { device ->
+                if (device.type == "outlet" && device.scheduleEnabled) {
+                    val shouldBeOn = if (device.scheduleStartHour <= device.scheduleEndHour) {
+                        currentHour in device.scheduleStartHour until device.scheduleEndHour
+                    } else {
+                        // handles overnight schedules e.g. 22 -> 6
+                        currentHour >= device.scheduleStartHour || currentHour < device.scheduleEndHour
+                    }
+
+                    val targetState = if (shouldBeOn) "ON" else "OFF"
+                    if (device.state != targetState) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                    }
+                }
+            }
+            delay(30000) // check every 30 seconds
+        }
+    }
 }
 
 @Composable
