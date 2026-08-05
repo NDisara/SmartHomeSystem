@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -45,7 +47,7 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
                 
-                val mainRoutes = listOf("home", "alerts", "reports", "settings")
+                val mainRoutes = listOf("home", "alerts", "reports", "settings", "floorDetail/{floorId}")
                 val showBottomBar = currentRoute in mainRoutes
 
                 Scaffold(
@@ -66,8 +68,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BottomNavigationBar(navController: NavHostController, currentRoute: String?) {
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.background,
-        tonalElevation = 8.dp
+        containerColor = Color(0xFF121212),
+        tonalElevation = 0.dp
     ) {
         val items = listOf(
             Triple("home", Icons.Default.Home, "Home"),
@@ -90,9 +92,9 @@ fun BottomNavigationBar(navController: NavHostController, currentRoute: String?)
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.White,
-                    unselectedIconColor = SecondaryText,
-                    indicatorColor = Color(0xFF333333)
+                    selectedIconColor = Color(0xFF2196F3),
+                    unselectedIconColor = Color(0xFF666666),
+                    indicatorColor = Color.Transparent
                 )
             )
         }
@@ -131,7 +133,14 @@ fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifie
             FloorDetailScreen(
                 floorId = floorId,
                 modifier = modifier,
-                onDeviceClick = { deviceId: String -> navController.navigate("deviceDetail/$floorId/$deviceId") }
+                onDeviceClick = { deviceId: String -> 
+                    // We check if it's the gang switch unit to navigate to the specialized detail screen
+                    if (deviceId == "gang1") {
+                        navController.navigate("multiSwitchDetail/$floorId/$deviceId")
+                    } else {
+                        navController.navigate("deviceDetail/$floorId/$deviceId")
+                    }
+                }
             )
         }
         composable("deviceDetail/{floorId}/{deviceId}") { backStackEntry ->
@@ -139,76 +148,10 @@ fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifie
             val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
             DeviceDetailScreen(floorId = floorId, deviceId = deviceId)
         }
-    }
-}
-
-@Composable
-fun AlertsPlaceholderScreen(modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp)
-    ) {
-        Text("Alerts", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(24.dp))
-        
-        AlertItem("Critical: Iron left ON", "Safety cutoff triggered in Ground Floor", Color.Red)
-        AlertItem("Warning: Camera disconnected", "Porch camera is offline", Color.Yellow)
-        AlertItem("Info: Schedule run", "Hallway light turned OFF", Color.Cyan)
-    }
-}
-
-@Composable
-fun AlertItem(title: String, desc: String, color: Color) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.5f))
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).background(color, RoundedCornerShape(2.dp)))
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(text = title, color = Color.White, fontWeight = FontWeight.Bold)
-                Text(text = desc, color = SecondaryText, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-@Composable
-fun SettingsPlaceholderScreen(navController: NavHostController, modifier: Modifier) {
-    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-        Text("Account: demo@example.com", color = SecondaryText)
-        Text("Database: Connected", color = Color.Green)
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Button(
-            onClick = { FirebaseRepository.addSampleData() },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Reset / Add Sample Data")
-        }
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        Button(
-            onClick = {
-                navController.navigate("login") {
-                    popUpTo(0)
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f), contentColor = Color.Red),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
-        ) {
-            Text("Logout", fontWeight = FontWeight.Bold)
+        composable("multiSwitchDetail/{floorId}/{deviceId}") { backStackEntry ->
+            val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            MultiSwitchDetailScreen(floorId = floorId, deviceId = deviceId)
         }
     }
 }
@@ -229,9 +172,10 @@ fun FloorListScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF121212))
             .padding(24.dp)
     ) {
+        Text("Home", color = Color(0xFF888888), fontSize = 14.sp)
         Text(
             text = "My home",
             style = MaterialTheme.typography.headlineMedium,
@@ -241,17 +185,17 @@ fun FloorListScreen(
         Text(
             text = "${floors.size} floor plans",
             style = MaterialTheme.typography.bodyMedium,
-            color = SecondaryText
+            color = Color(0xFF888888)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         if (floors.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
                     Spacer(Modifier.height(16.dp))
-                    Text(text = "Looking for floors...", color = SecondaryText)
+                    Text(text = "Looking for floors...", color = Color(0xFF666666))
                 }
             }
         } else {
@@ -269,7 +213,7 @@ fun FloorListScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .border(1.dp, SecondaryText, RoundedCornerShape(12.dp)),
+                .border(1.dp, Color(0xFF333333), RoundedCornerShape(12.dp)),
             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -282,39 +226,90 @@ fun FloorListScreen(
 
 @Composable
 fun FloorItem(floor: Floor, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    val (deviceCount, roomCount) = when(floor.id) {
+        "ground" -> 7 to 4
+        "first" -> 5 to 3
+        "garage" -> 2 to 1
+        else -> 0 to 0
+    }
+
+    Surface(
+        onClick = onClick,
+        color = Color(0xFF1A1A1A),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF333333))
+        border = BorderStroke(1.dp, Color(0xFF222222)),
+        modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .padding(20.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0xFF222222), CircleShape)
+                    .border(1.dp, Color(0xFF333333), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Home, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(20.dp))
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = floor.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Text(
-                    text = "Devices loaded",
+                    text = "$deviceCount devices · $roomCount rooms",
                     style = MaterialTheme.typography.bodySmall,
-                    color = SecondaryText
+                    color = Color(0xFF666666)
                 )
             }
             Icon(
                 Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = SecondaryText
+                tint = Color(0xFF444444)
             )
+        }
+    }
+}
+
+@Composable
+fun AlertsPlaceholderScreen(modifier: Modifier) {
+    Column(modifier.fillMaxSize().background(Color(0xFF121212)).padding(24.dp)) {
+        Text("Alerts", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun SettingsPlaceholderScreen(navController: NavHostController, modifier: Modifier) {
+    Column(modifier.fillMaxSize().background(Color(0xFF121212)).padding(24.dp)) {
+        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(32.dp))
+        Button(
+            onClick = { FirebaseRepository.addSampleData() },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Reset / Add Sample Data")
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            onClick = {
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f), contentColor = Color.Red),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+        ) {
+            Text("Logout", fontWeight = FontWeight.Bold)
         }
     }
 }

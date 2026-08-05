@@ -13,6 +13,7 @@ data class Device(
     val scheduleOn: String? = null,  // Format "HH:mm"
     val scheduleOff: String? = null, // Format "HH:mm"
     val floorId: String = "",
+    val roomId: String = "",     // "kitchen", "living_room", "utility", "porch"
     val scheduleEnabled: Boolean = false,
     val scheduleStartHour: Int = 0,
     val scheduleEndHour: Int = 0
