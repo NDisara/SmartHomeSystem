@@ -54,8 +54,9 @@ fun FloorDetailScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .navigationBarsPadding(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 120.dp)
     ) {
         // --- Top Header ---
         item {
@@ -413,12 +414,12 @@ fun getRoomName(device: Device): String {
     if (device.room.isNotBlank()) return device.room
     val nameLower = device.name.lowercase()
     return when {
-        "kitchen" in nameLower || "toaster" in nameLower -> "Kitchen"
+        "kitchen" in nameLower || "toaster" in nameLower || "outlet" in nameLower || "light 1" in nameLower -> "Kitchen"
         "living" in nameLower || "gang" in nameLower || "lamp" in nameLower -> "Living room"
         "utility" in nameLower || "iron" in nameLower -> "Utility"
         "porch" in nameLower || "camera" in nameLower -> "Porch"
         "garage" in nameLower || "door" in nameLower -> "Garage"
-        else -> "General"
+        else -> "Kitchen"
     }
 }
 
