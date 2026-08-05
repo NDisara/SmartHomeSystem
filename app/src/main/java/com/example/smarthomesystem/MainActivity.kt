@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
                 
-                val mainRoutes = listOf("home", "alerts", "reports", "settings", "floorDetail/{floorId}")
+                val mainRoutes = listOf("home", "alerts", "reports", "settings")
                 val showBottomBar = currentRoute in mainRoutes
 
                 Scaffold(
@@ -133,9 +133,8 @@ fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifie
             val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
             FloorDetailScreen(
                 floorId = floorId,
-                modifier = modifier,
+                modifier = Modifier.fillMaxSize(),
                 onDeviceClick = { deviceId: String -> 
-                    // We check if it's the gang switch unit to navigate to the specialized detail screen
                     if (deviceId == "gang1") {
                         navController.navigate("multiSwitchDetail/$floorId/$deviceId")
                     } else {
