@@ -4,10 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,15 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarthomesystem.ui.theme.*
 import java.util.Calendar
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun FloorDetailScreen(
@@ -38,8 +34,6 @@ fun FloorDetailScreen(
 ) {
     var devices by remember { mutableStateOf<List<Device>>(emptyList()) }
     var floorName by remember { mutableStateOf("Loading...") }
-    val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(floorId) {
         FirebaseRepository.listenToFloors { floors ->
@@ -57,84 +51,76 @@ fun FloorDetailScreen(
         roomGroupedDevices.keys.toList()
     }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(scrollState)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        if (event.type == PointerEventType.Scroll) {
-                            val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                            coroutineScope.launch {
-                                scrollState.scrollBy(delta * 40f)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 140.dp)
     ) {
         // --- Top Header ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = floorName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "${devices.size} devices · ${if (uniqueRooms.isEmpty()) 4 else uniqueRooms.size} rooms",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = SecondaryText
-                )
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = floorName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "${devices.size} devices · ${if (uniqueRooms.isEmpty()) 4 else uniqueRooms.size} rooms",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SecondaryText
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color(0xFF282828), CircleShape)
+                        .clickable { /* Action to add device */ },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Color(0xFF282828), CircleShape)
-                    .clickable { /* Action to add device */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(20.dp))
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
         // --- Floor Structure Layout Card (2x2 Grid with device icons inside rooms) ---
-        FloorStructurePlanCard(
-            devices = devices,
-            uniqueRooms = uniqueRooms
-        )
+        item {
+            FloorStructurePlanCard(
+                devices = devices,
+                uniqueRooms = uniqueRooms
+            )
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         // --- Grouped Devices by Room List ---
         if (devices.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "No devices on this floor.", color = SecondaryText)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "No devices on this floor.", color = SecondaryText)
+                }
             }
         } else {
-            uniqueRooms.forEach { roomName ->
+            items(uniqueRooms) { roomName ->
                 val roomDevices = roomGroupedDevices[roomName] ?: emptyList()
                 RoomGroupSection(
                     roomName = roomName,
@@ -143,8 +129,6 @@ fun FloorDetailScreen(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(100.dp))
     }
 
     // --- Safety Cutoff Timer Simulation ---
