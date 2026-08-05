@@ -1,16 +1,24 @@
 package com.example.smarthomesystem
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.AltRoute
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,74 +37,103 @@ fun FloorDetailScreen(
 
     LaunchedEffect(floorId) {
         FirebaseRepository.listenToFloors { floors ->
-            floorName = floors.find { it.id == floorId }?.name ?: "Unknown Floor"
+            floorName = floors.find { it.id == floorId }?.name ?: "Ground floor"
         }
         FirebaseRepository.listenToDevices(floorId) { updatedDevices ->
             devices = updatedDevices
         }
     }
 
+    val roomGroupedDevices = remember(devices) {
+        devices.groupBy { getRoomName(it) }
+    }
+    val uniqueRooms = remember(roomGroupedDevices) {
+        roomGroupedDevices.keys.toList()
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        Text(
-            text = floorName,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Text(text = "grid overlay", color = SecondaryText, fontSize = 12.sp)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Abstract Grid Mapping Overlaid onto Floor Layout
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(250.dp)
-                .background(CardBackground, RoundedCornerShape(24.dp))
-                .padding(16.dp)
+        // --- Top Header ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Stylized abstract "floor plan" elements
-            Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp)))
-            
-            // Map devices to grid points based on their index for demo
-            devices.forEachIndexed { index, device ->
-                val alignment = when (index % 4) {
-                    0 -> Alignment.TopStart
-                    1 -> Alignment.TopEnd
-                    2 -> Alignment.BottomStart
-                    else -> Alignment.BottomEnd
-                }
-                
-                DeviceGridNode(
-                    device = device,
-                    modifier = Modifier.align(alignment).padding(16.dp),
-                    onClick = { onDeviceClick(device.id) }
+            Column {
+                Text(
+                    text = floorName,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "${devices.size} devices · ${if (uniqueRooms.isEmpty()) 4 else uniqueRooms.size} rooms",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SecondaryText
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFF282828), CircleShape)
+                    .clickable { /* Action to add device */ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
+        // --- Floor Structure Layout Card (2x2 Grid with device icons inside rooms) ---
+        FloorStructurePlanCard(
+            devices = devices,
+            uniqueRooms = uniqueRooms
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- Grouped Devices by Room List ---
         if (devices.isEmpty()) {
-            Text(text = "No devices in this floor.", color = SecondaryText)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "No devices on this floor.", color = SecondaryText)
+            }
         } else {
-            LazyColumn {
-                items(devices) { device ->
-                    DeviceRow(device = device, onClick = { onDeviceClick(device.id) })
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(uniqueRooms) { roomName ->
+                    val roomDevices = roomGroupedDevices[roomName] ?: emptyList()
+                    RoomGroupSection(
+                        roomName = roomName,
+                        devices = roomDevices,
+                        onDeviceClick = onDeviceClick
+                    )
                 }
             }
         }
     }
-    
-    // Client-side Safety Cutoff Simulation
+
+    // --- Safety Cutoff Timer Simulation ---
     LaunchedEffect(devices) {
         devices.forEach { device ->
-            if (device.type == "iron" && device.state == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
+            if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
                 val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
                 if (elapsed >= device.maxDurationSec) {
                     FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
@@ -106,7 +143,7 @@ fun FloorDetailScreen(
         }
     }
 
-    // ---- Auto-scheduled lights check (runs every 30 seconds) ----
+    // --- Auto-scheduled lights check ---
     LaunchedEffect(devices) {
         while (true) {
             val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -119,7 +156,6 @@ fun FloorDetailScreen(
                     val shouldBeOn = if (startHour <= endHour) {
                         currentHour in startHour until endHour
                     } else {
-                        // handles overnight schedules e.g. 22 -> 6
                         currentHour >= startHour || currentHour < endHour
                     }
 
@@ -130,74 +166,292 @@ fun FloorDetailScreen(
                     }
                 }
             }
-            delay(30000) // check every 30 seconds
+            delay(30000)
         }
     }
 }
 
 @Composable
-fun DeviceGridNode(device: Device, modifier: Modifier, onClick: () -> Unit) {
-    val color = when (device.state) {
-        "ON" -> StatusGreen
-        "ERROR" -> StatusRed
-        "DISCONNECTED" -> Color.Gray
-        else -> SecondaryText
-    }
-    
-    Box(
+fun FloorStructurePlanCard(
+    devices: List<Device>,
+    uniqueRooms: List<String>,
+    modifier: Modifier = Modifier
+) {
+    val defaultRooms = listOf("Kitchen", "Porch", "Utility", "Living room")
+    val displayRooms = (uniqueRooms + defaultRooms).distinct().take(4)
+
+    Card(
         modifier = modifier
-            .size(48.dp)
-            .background(color.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .height(230.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, Color(0xFF333333))
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // Top-Left Quadrant
+                RoomQuadrantCell(
+                    roomName = displayRooms.getOrNull(0) ?: "Kitchen",
+                    devices = devices.filter { getRoomName(it).equals(displayRooms.getOrNull(0) ?: "Kitchen", ignoreCase = true) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                HorizontalDivider(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(1.dp),
+                    color = Color(0xFF333333)
+                )
+                // Top-Right Quadrant
+                RoomQuadrantCell(
+                    roomName = displayRooms.getOrNull(1) ?: "Porch",
+                    devices = devices.filter { getRoomName(it).equals(displayRooms.getOrNull(1) ?: "Porch", ignoreCase = true) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+            }
+            HorizontalDivider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp),
+                color = Color(0xFF333333)
+            )
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // Bottom-Left Quadrant
+                RoomQuadrantCell(
+                    roomName = displayRooms.getOrNull(2) ?: "Utility",
+                    devices = devices.filter { getRoomName(it).equals(displayRooms.getOrNull(2) ?: "Utility", ignoreCase = true) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                HorizontalDivider(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(1.dp),
+                    color = Color(0xFF333333)
+                )
+                // Bottom-Right Quadrant
+                RoomQuadrantCell(
+                    roomName = displayRooms.getOrNull(3) ?: "Living room",
+                    devices = devices.filter { getRoomName(it).equals(displayRooms.getOrNull(3) ?: "Living room", ignoreCase = true) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RoomQuadrantCell(
+    roomName: String,
+    devices: List<Device>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(14.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = roomName,
+            fontSize = 13.sp,
+            color = SecondaryText,
+            fontWeight = FontWeight.Medium
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            devices.forEach { device ->
+                val icon = getDeviceIcon(device)
+                val statusColor = getDeviceStatusColor(device)
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color(0xFF282828), CircleShape)
+                        .border(1.dp, statusColor.copy(alpha = 0.4f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = device.name,
+                        tint = statusColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RoomGroupSection(
+    roomName: String,
+    devices: List<Device>,
+    onDeviceClick: (String) -> Unit
+) {
+    Column(modifier = Modifier.padding(bottom = 20.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 10.dp)
+        ) {
+            Icon(
+                imageVector = getRoomIcon(roomName),
+                contentDescription = null,
+                tint = SecondaryText,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = roomName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color(0xFF2A2A2A))
+        ) {
+            Column {
+                devices.forEachIndexed { index, device ->
+                    DeviceRowItem(
+                        device = device,
+                        onClick = { onDeviceClick(device.id) }
+                    )
+                    if (index < devices.size - 1) {
+                        HorizontalDivider(
+                            color = Color(0xFF2A2A2A),
+                            thickness = 1.dp,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeviceRowItem(
+    device: Device,
+    onClick: () -> Unit
+) {
+    val statusColor = getDeviceStatusColor(device)
+    val deviceIcon = getDeviceIcon(device)
+
+    val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
+
+    val statusText = when {
+        isIronOn && device.maxDurationSec > 0 && device.turnedOnAt > 0 -> {
+            val elapsedSec = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+            val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
+            val remainingMin = (remainingSec + 59) / 60
+            "On · ${remainingMin}m left"
+        }
+        device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
+        device.state.uppercase() == "ON" -> "On"
+        device.state.uppercase() == "OFF" -> "Off"
+        else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
+    }
+
+    val rowModifier = if (isIronOn) {
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF2D1B1B), RoundedCornerShape(12.dp))
+            .border(1.dp, StatusRed.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    }
+
+    Row(
+        modifier = rowModifier,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(12.dp)
-                .background(color, RoundedCornerShape(2.dp))
+                .size(36.dp)
+                .background(statusColor.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = deviceIcon,
+                contentDescription = null,
+                tint = statusColor,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Text(
+            text = device.name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = statusText,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = statusColor
         )
     }
 }
 
-@Composable
-fun DeviceRow(device: Device, onClick: () -> Unit) {
-    val statusText = when {
-        device.type == "camera" -> "streaming"
-        device.state == "ON" -> "on"
-        device.state == "OFF" -> "off"
-        else -> device.state.lowercase()
+fun getRoomName(device: Device): String {
+    if (device.room.isNotBlank()) return device.room
+    val nameLower = device.name.lowercase()
+    return when {
+        "kitchen" in nameLower || "toaster" in nameLower -> "Kitchen"
+        "living" in nameLower || "gang" in nameLower || "lamp" in nameLower -> "Living room"
+        "utility" in nameLower || "iron" in nameLower -> "Utility"
+        "porch" in nameLower || "camera" in nameLower -> "Porch"
+        "garage" in nameLower || "door" in nameLower -> "Garage"
+        else -> "General"
     }
+}
 
-    val statusColor = when (statusText) {
-        "on" -> StatusGreen
-        "error" -> StatusRed
-        "streaming" -> StatusBlue
-        "off" -> SecondaryText
+fun getRoomIcon(roomName: String): ImageVector {
+    return when (roomName.lowercase()) {
+        "kitchen" -> Icons.Outlined.Restaurant
+        "living room", "livingroom" -> Icons.Outlined.Weekend
+        "utility" -> Icons.Outlined.LocalLaundryService
+        "porch" -> Icons.Outlined.DoorFront
+        "garage" -> Icons.Outlined.DirectionsCar
+        else -> Icons.Outlined.HomeWork
+    }
+}
+
+fun getDeviceIcon(device: Device): ImageVector {
+    val typeLower = device.type.lowercase()
+    val nameLower = device.name.lowercase()
+    return when {
+        typeLower == "camera" || "camera" in nameLower -> Icons.Outlined.PhotoCamera
+        typeLower == "iron" || "iron" in nameLower -> Icons.Outlined.Iron
+        typeLower == "multiswitch" || "gang" in nameLower || "switch" in nameLower -> Icons.AutoMirrored.Outlined.AltRoute
+        typeLower == "light" || "lamp" in nameLower || "light" in nameLower -> Icons.Outlined.Lightbulb
+        typeLower == "outlet" || "plug" in nameLower || "outlet" in nameLower -> Icons.Outlined.Power
+        else -> Icons.Outlined.Power
+    }
+}
+
+fun getDeviceStatusColor(device: Device): Color {
+    val stateUpper = device.state.uppercase()
+    return when {
+        stateUpper == "STREAMING" || device.type.lowercase() == "camera" -> Color(0xFFF57C00)
+        stateUpper == "ON" && device.type.lowercase() == "iron" -> StatusRed
+        stateUpper == "ON" -> StatusGreen
+        stateUpper == "ERROR" -> StatusRed
         else -> SecondaryText
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = device.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.White
-            )
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = statusColor
-            )
-        }
-        HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
     }
 }
