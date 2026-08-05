@@ -112,12 +112,15 @@ fun FloorDetailScreen(
             val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
             devices.forEach { device ->
-                if (device.type == "outlet" && device.scheduleEnabled) {
-                    val shouldBeOn = if (device.scheduleStartHour <= device.scheduleEndHour) {
-                        currentHour in device.scheduleStartHour until device.scheduleEndHour
+                val startHour = device.scheduleOn?.substringBefore(":")?.toIntOrNull()
+                val endHour = device.scheduleOff?.substringBefore(":")?.toIntOrNull()
+
+                if (startHour != null && endHour != null) {
+                    val shouldBeOn = if (startHour <= endHour) {
+                        currentHour in startHour until endHour
                     } else {
                         // handles overnight schedules e.g. 22 -> 6
-                        currentHour >= device.scheduleStartHour || currentHour < device.scheduleEndHour
+                        currentHour >= startHour || currentHour < endHour
                     }
 
                     val targetState = if (shouldBeOn) "ON" else "OFF"
