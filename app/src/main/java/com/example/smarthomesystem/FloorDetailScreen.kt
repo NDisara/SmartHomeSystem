@@ -51,81 +51,82 @@ fun FloorDetailScreen(
         roomGroupedDevices.keys.toList()
     }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp)
     ) {
         // --- Top Header ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = floorName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "${devices.size} devices · ${if (uniqueRooms.isEmpty()) 4 else uniqueRooms.size} rooms",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = SecondaryText
-                )
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = floorName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "${devices.size} devices · ${if (uniqueRooms.isEmpty()) 4 else uniqueRooms.size} rooms",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SecondaryText
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Color(0xFF282828), CircleShape)
+                        .clickable { /* Action to add device */ },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(Color(0xFF282828), CircleShape)
-                    .clickable { /* Action to add device */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add",
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(20.dp))
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
         // --- Floor Structure Layout Card (2x2 Grid with device icons inside rooms) ---
-        FloorStructurePlanCard(
-            devices = devices,
-            uniqueRooms = uniqueRooms
-        )
+        item {
+            FloorStructurePlanCard(
+                devices = devices,
+                uniqueRooms = uniqueRooms
+            )
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         // --- Grouped Devices by Room List ---
         if (devices.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "No devices on this floor.", color = SecondaryText)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "No devices on this floor.", color = SecondaryText)
+                }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(uniqueRooms) { roomName ->
-                    val roomDevices = roomGroupedDevices[roomName] ?: emptyList()
-                    RoomGroupSection(
-                        roomName = roomName,
-                        devices = roomDevices,
-                        onDeviceClick = onDeviceClick
-                    )
-                }
+            items(uniqueRooms) { roomName ->
+                val roomDevices = roomGroupedDevices[roomName] ?: emptyList()
+                RoomGroupSection(
+                    roomName = roomName,
+                    devices = roomDevices,
+                    onDeviceClick = onDeviceClick
+                )
             }
         }
     }
