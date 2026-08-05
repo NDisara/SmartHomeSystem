@@ -103,7 +103,16 @@ fun BottomNavigationBar(navController: NavHostController, currentRoute: String?)
 
 @Composable
 fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifier) {
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(navController = navController, startDestination = "login") {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("home") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
         composable("home") {
             FloorListScreen(
                 modifier = modifier,
@@ -117,7 +126,7 @@ fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifie
             ReportScreen(modifier = modifier)
         }
         composable("settings") {
-            SettingsPlaceholderScreen(modifier)
+            SettingsPlaceholderScreen(navController, modifier)
         }
         composable("floorDetail/{floorId}") { backStackEntry ->
             val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
@@ -171,12 +180,38 @@ fun AlertItem(title: String, desc: String, color: Color) {
 }
 
 @Composable
-fun SettingsPlaceholderScreen(modifier: Modifier) {
+fun SettingsPlaceholderScreen(navController: NavHostController, modifier: Modifier) {
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
         Text("Account: demo@example.com", color = SecondaryText)
         Text("Database: Connected", color = Color.Green)
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Button(
+            onClick = { FirebaseRepository.addSampleData() },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Reset / Add Sample Data")
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        Button(
+            onClick = {
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f), contentColor = Color.Red),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+        ) {
+            Text("Logout", fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -214,13 +249,11 @@ fun FloorListScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (floors.isEmpty()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Loading floors...", color = Color.White)
-                Button(
-                    onClick = { FirebaseRepository.addSampleData() },
-                    modifier = Modifier.padding(top = 16.dp)
-                ) {
-                    Text("Add Sample Data")
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Spacer(Modifier.height(16.dp))
+                    Text(text = "Looking for floors...", color = SecondaryText)
                 }
             }
         } else {
