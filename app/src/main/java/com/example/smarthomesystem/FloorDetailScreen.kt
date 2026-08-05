@@ -54,9 +54,8 @@ fun FloorDetailScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .navigationBarsPadding(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 120.dp)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 140.dp)
     ) {
         // --- Top Header ---
         item {
@@ -424,12 +423,16 @@ fun getRoomName(device: Device): String {
 }
 
 fun getRoomIcon(roomName: String): ImageVector {
-    return when (roomName.lowercase()) {
-        "kitchen" -> Icons.Outlined.Restaurant
-        "living room", "livingroom" -> Icons.Outlined.Weekend
-        "utility" -> Icons.Outlined.LocalLaundryService
-        "porch" -> Icons.Outlined.DoorFront
-        "garage" -> Icons.Outlined.DirectionsCar
+    val nameLower = roomName.lowercase()
+    return when {
+        "kitchen" in nameLower -> Icons.Outlined.Restaurant
+        "living" in nameLower -> Icons.Outlined.Weekend
+        "utility" in nameLower -> Icons.Outlined.LocalLaundryService
+        "porch" in nameLower -> Icons.Outlined.DoorFront
+        "garage" in nameLower -> Icons.Outlined.DirectionsCar
+        "bed" in nameLower -> Icons.Outlined.SingleBed
+        "bath" in nameLower -> Icons.Outlined.Bathtub
+        "balcony" in nameLower -> Icons.Outlined.Balcony
         else -> Icons.Outlined.HomeWork
     }
 }
