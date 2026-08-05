@@ -40,6 +40,7 @@ import com.example.smarthomesystem.ui.theme.SecondaryText
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FirebaseRepository.addSampleData()
         enableEdgeToEdge()
         setContent {
             SmartHomeSystemTheme {
