@@ -15,6 +15,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarthomesystem.ui.theme.*
+import java.util.Calendar
+import kotlinx.coroutines.delay
 
 @Composable
 fun FloorDetailScreen(
@@ -193,6 +195,6 @@ fun DeviceRow(device: Device, onClick: () -> Unit) {
                 color = statusColor
             )
         }
-        Divider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
+        HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
     }
 }

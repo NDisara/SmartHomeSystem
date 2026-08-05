@@ -11,5 +11,8 @@ data class Device(
     val streamUrl: String = "",  // For camera
     val scheduleOn: String? = null,  // Format "HH:mm"
     val scheduleOff: String? = null, // Format "HH:mm"
-    val floorId: String = ""
+    val floorId: String = "",
+    val scheduleEnabled: Boolean = false,
+    val scheduleStartHour: Int = 0,
+    val scheduleEndHour: Int = 0
 )
