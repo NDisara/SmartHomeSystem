@@ -77,29 +77,37 @@ object FirebaseRepository {
     fun addSampleData() {
         val floorsRef = database.getReference("floors")
         
-        // Ground Floor
+        // Ground Floor (7 devices across 4 rooms matching screenshot)
         val groundId = "ground"
         floorsRef.child(groundId).child("name").setValue("Ground floor")
         val groundDevices = floorsRef.child(groundId).child("devices")
-        groundDevices.child("outlet1").setValue(Device(name = "Kitchen outlet", type = "outlet", state = "ON"))
-        groundDevices.child("iron1").setValue(Device(name = "Utility iron", type = "iron", state = "OFF", maxDurationSec = 900))
-        groundDevices.child("cam1").setValue(Device(name = "Porch camera", type = "camera", streamUrl = "rtsp://mock-stream/porch"))
-        groundDevices.child("light1").setValue(Device(name = "Hallway light", type = "light", state = "OFF", scheduleOn = "18:00", scheduleOff = "06:00"))
+        
+        // Kitchen (3 devices)
+        groundDevices.child("outlet1").setValue(Device(name = "Outlet 1", type = "outlet", state = "ON", room = "Kitchen"))
+        groundDevices.child("light1").setValue(Device(name = "Light 1", type = "light", state = "ON", room = "Kitchen"))
+        groundDevices.child("toaster1").setValue(Device(name = "Toaster plug", type = "outlet", state = "OFF", room = "Kitchen"))
+        
+        // Living room (2 devices)
+        groundDevices.child("gang1").setValue(Device(name = "Gang switch unit", type = "multiswitch", state = "OFF", room = "Living room"))
+        groundDevices.child("lamp1").setValue(Device(name = "Floor lamp", type = "light", state = "ON", room = "Living room"))
+        
+        // Utility (1 device: iron ON with 8m remaining out of 15m)
+        val eightMinLeftTimestamp = System.currentTimeMillis() - ((900 - 480) * 1000L)
+        groundDevices.child("iron1").setValue(Device(name = "Clothing iron", type = "iron", state = "ON", room = "Utility", maxDurationSec = 900, turnedOnAt = eightMinLeftTimestamp))
+        
+        // Porch (1 device: camera streaming)
+        groundDevices.child("cam1").setValue(Device(name = "Front door camera", type = "camera", state = "STREAMING", room = "Porch", streamUrl = "rtsp://mock-stream/porch"))
 
         // First Floor
         val firstId = "first"
         floorsRef.child(firstId).child("name").setValue("First floor")
         val firstDevices = floorsRef.child(firstId).child("devices")
-        firstDevices.child("gangbox1").setValue(mapOf(
-            "name" to "Living room gang-box",
-            "type" to "multiswitch",
-            "switches" to mapOf("sw1_lamp" to "ON", "sw2_fan" to "OFF", "sw3_TV plug" to "ON")
-        ))
+        firstDevices.child("gangbox1").setValue(Device(name = "Living room gang-box", type = "multiswitch", state = "OFF", room = "Living room"))
         
         // Garage
         val garageId = "garage"
         floorsRef.child(garageId).child("name").setValue("Garage")
         val garageDevices = floorsRef.child(garageId).child("devices")
-        garageDevices.child("door1").setValue(Device(name = "Main Garage Door", type = "outlet", state = "OFF"))
+        garageDevices.child("door1").setValue(Device(name = "Main Garage Door", type = "outlet", state = "OFF", room = "Garage"))
     }
 }
