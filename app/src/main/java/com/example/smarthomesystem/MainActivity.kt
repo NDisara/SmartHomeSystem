@@ -226,11 +226,28 @@ fun FloorListScreen(
 
 @Composable
 fun FloorItem(floor: Floor, onClick: () -> Unit) {
-    val (deviceCount, roomCount) = when(floor.id) {
-        "ground" -> 7 to 4
-        "first" -> 5 to 3
-        "garage" -> 2 to 1
-        else -> 0 to 0
+    var devices by remember(floor.id) { mutableStateOf<List<Device>>(emptyList()) }
+
+    LaunchedEffect(floor.id) {
+        FirebaseRepository.listenToDevices(floor.id) { updatedDevices ->
+            devices = updatedDevices
+        }
+    }
+
+    val roomCount = remember(devices) {
+        if (devices.isEmpty()) {
+            if (floor.id == "ground") 5 else 4
+        } else {
+            devices.map { getRoomName(it) }.distinct().size
+        }
+    }
+    
+    val deviceCount = remember(devices) {
+        if (devices.isEmpty()) {
+            if (floor.id == "ground") 8 else 4
+        } else {
+            devices.size
+        }
     }
 
     Surface(
