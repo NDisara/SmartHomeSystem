@@ -7,9 +7,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -22,7 +21,7 @@ import java.util.*
 @Composable
 fun ReportScreen(modifier: Modifier = Modifier) {
     var logs by remember { mutableStateOf<List<UsageLog>>(emptyList()) }
-    var activeDevicesCount by remember { mutableStateOf(0) }
+    var activeDevicesCount by remember { mutableIntStateOf(0) }
     val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm:ss", Locale.getDefault()) }
 
     LaunchedEffect(Unit) {
@@ -99,6 +98,6 @@ fun ActivityRow(log: UsageLog, dateFormat: SimpleDateFormat) {
             style = MaterialTheme.typography.bodySmall,
             color = SecondaryText
         )
-        Divider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
+        HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
     }
 }

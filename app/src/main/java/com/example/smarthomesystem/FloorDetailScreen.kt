@@ -15,6 +15,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarthomesystem.ui.theme.*
+import java.util.Calendar
+import kotlinx.coroutines.delay
 
 @Composable
 fun FloorDetailScreen(
@@ -110,12 +112,15 @@ fun FloorDetailScreen(
             val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
             devices.forEach { device ->
-                if (device.type == "outlet" && device.scheduleEnabled) {
-                    val shouldBeOn = if (device.scheduleStartHour <= device.scheduleEndHour) {
-                        currentHour in device.scheduleStartHour until device.scheduleEndHour
+                val startHour = device.scheduleOn?.substringBefore(":")?.toIntOrNull()
+                val endHour = device.scheduleOff?.substringBefore(":")?.toIntOrNull()
+
+                if (startHour != null && endHour != null) {
+                    val shouldBeOn = if (startHour <= endHour) {
+                        currentHour in startHour until endHour
                     } else {
                         // handles overnight schedules e.g. 22 -> 6
-                        currentHour >= device.scheduleStartHour || currentHour < device.scheduleEndHour
+                        currentHour >= startHour || currentHour < endHour
                     }
 
                     val targetState = if (shouldBeOn) "ON" else "OFF"
@@ -193,6 +198,6 @@ fun DeviceRow(device: Device, onClick: () -> Unit) {
                 color = statusColor
             )
         }
-        Divider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
+        HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(top = 12.dp))
     }
 }
