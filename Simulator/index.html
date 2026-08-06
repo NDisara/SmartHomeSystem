@@ -8,21 +8,60 @@
         .container { max-width: 1000px; margin: 0 auto; }
         h1 { color: #2196F3; font-weight: 300; }
         .floor-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
-        .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
-        .card { background: #1e1e1e; border-radius: 12px; padding: 20px; border: 1px solid #333; transition: 0.3s; }
+        .card { background: #1e1e1e; border-radius: 10px; padding: 12px; border: 1px solid #333; transition: 0.3s; }
         .card.on { border-color: #4caf50; background: #1b261b; }
         .card.error { border-color: #f44336; }
         .card.clickable:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         .sw-row.clickable:hover { background: #3a3a3a; }
-        .name { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
-        .type { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 15px; }
-        .status { font-size: 14px; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        .name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .type { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+        .status { font-size: 12px; padding: 3px 6px; border-radius: 4px; display: inline-block; }
         .status.on { background: #4caf50; color: white; }
         .status.off { background: #424242; color: #aaa; }
-        .switch-unit { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-        .sw-row { display: flex; justify-content: space-between; background: #2a2a2a; padding: 8px; border-radius: 6px; font-size: 13px; }
+        .switch-unit { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .sw-row { display: flex; justify-content: space-between; background: #2a2a2a; padding: 6px; border-radius: 6px; font-size: 11px; }
         #status-bar { background: #1a1a1a; padding: 10px 20px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; }
-        .camera-box { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; margin-top: 10px; display: flex; align-items: center; justify-content: center; color: #555; }
+        .camera-box { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; margin-top: 8px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+        
+        .floor-container { display: flex; flex-direction: column; gap: 20px; }
+        
+        /* Ground Layout */
+        .floor-container.ground-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 900px) {
+            .floor-container.ground-layout {
+                grid-template-columns: 350px 1fr 1fr;
+                grid-template-areas: 
+                    "garage kitchen living-room"
+                    "garage utility porch";
+            }
+        }
+        
+        /* First Floor Layout */
+        .floor-container.first-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 900px) {
+            .floor-container.first-layout {
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas: 
+                    "bathroom bedroom-2"
+                    "master-bedroom bedroom-2"
+                    "balcony balcony";
+            }
+        }
+
+        /* Room Areas */
+        .room-garage { grid-area: garage; height: 100%; }
+        .room-kitchen { grid-area: kitchen; height: 100%; }
+        .room-living-room { grid-area: living-room; height: 100%; }
+        .room-porch { grid-area: porch; height: 100%; }
+        .room-utility { grid-area: utility; height: 100%; }
+        .room-balcony { grid-area: balcony; height: 100%; }
+        .room-master-bedroom { grid-area: master-bedroom; height: 100%; }
+        .room-bathroom { grid-area: bathroom; height: 100%; }
+        .room-bedroom-2 { grid-area: bedroom-2; height: 100%; }
+
+        .room-bg-container { position: relative; border-radius: 12px; overflow: hidden; margin-top: 15px; margin-bottom: 20px; background-size: cover; background-position: center; background-color: transparent; height: calc(100% - 60px); min-height: 250px; }
+        .room-bg-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 1; transition: background-color 0.6s ease; }
+        .device-grid { position: relative; z-index: 2; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
     </style>
 </head>
 
@@ -65,64 +104,119 @@
             section.className = "floor-section";
             section.innerHTML = `<h2>Floor: ${floor.name || floorId}</h2>`;
 
-            const grid = document.createElement("div");
-            grid.className = "device-grid";
+            const floorContainer = document.createElement("div");
+            let layoutClass = '';
+            if (floorId === 'ground' || floor.name === 'Ground floor') layoutClass = 'ground-layout';
+            if (floorId === 'first' || floor.name === 'First floor') layoutClass = 'first-layout';
+            floorContainer.className = `floor-container ${layoutClass}`;
 
             if (floor.devices) {
+                const rooms = {};
                 Object.entries(floor.devices).forEach(([deviceId, device]) => {
-                    const card = document.createElement("div");
-                    const isOn = device.state === "ON";
-                    card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
+                    const roomName = device.room || 'Unassigned';
+                    if (!rooms[roomName]) rooms[roomName] = {};
+                    rooms[roomName][deviceId] = device;
+                });
 
-                    let content = `<div class="name">${device.name}</div><div class="type">${device.type}</div>`;
+                Object.entries(rooms).forEach(([roomName, devices]) => {
+                    const roomSection = document.createElement("div");
+                    const normalizedRoomName = roomName.toLowerCase().replace(/\s+/g, '-');
+                    roomSection.className = `room-section room-${normalizedRoomName}`;
+                    
+                    const imageName = roomName.toLowerCase().replace(/\s+/g, '_') + '.png';
 
-                    if (device.type === "multiswitch" && device.switches) {
-                        content += `<div class="switch-unit">`;
-                        Object.entries(device.switches).forEach(([swId, swState]) => {
-                            content += `<div class="sw-row multi-switch-row" data-swid="${swId}" data-swstate="${swState}"><span>${swId.split('_')[1] || swId}</span> <b>${swState}</b></div>`;
-                        });
-                        content += `</div>`;
-                    } else if (device.type === "camera") {
-                        content += `<div class="camera-box">LIVE STREAMING</div>`;
+                    roomSection.innerHTML = `<h3 style="color:#aaa; margin-top:20px; font-weight:400;">Room: ${roomName}</h3>`;
+                    
+                    const bgContainer = document.createElement("div");
+                    bgContainer.className = "room-bg-container";
+                    bgContainer.style.backgroundImage = `url('assets/${imageName}')`;
+                    
+                    const overlay = document.createElement("div");
+                    overlay.className = "room-bg-overlay";
+                    
+                    let hasLights = false;
+                    let isRoomLit = false;
+                    Object.values(devices).forEach(device => {
+                        if (device.type === "light" || device.type === "multiswitch") {
+                            hasLights = true;
+                            if (device.type === "multiswitch" && device.switches) {
+                                if (Object.values(device.switches).includes("ON")) isRoomLit = true;
+                            } else if (device.type === "light" && device.state === "ON") {
+                                isRoomLit = true;
+                            }
+                        }
+                    });
+                    
+                    if (hasLights && !isRoomLit) {
+                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.85)";
                     } else {
-                        card.classList.add("clickable");
-                        card.style.cursor = "pointer";
-                        card.addEventListener("click", () => {
-                            const newState = isOn ? "OFF" : "ON";
-                            set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
-                        });
-                        content += `<span class="status ${isOn ? 'on' : 'off'}">${device.state}</span>`;
-                        if (device.type === "iron" && isOn) {
-                            content += `<div style="font-size:11px; margin-top:10px; color:#ff9800;">Safety cutoff active</div>`;
-                        }
-                        if (device.type === "light" && device.scheduleOn) {
-                            content += `<div style="font-size:11px; margin-top:10px; color:#2196f3;">Schedule: ${device.scheduleOn} - ${device.scheduleOff}</div>`;
-                        }
+                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.4)";
                     }
+                    
+                    const grid = document.createElement("div");
+                    grid.className = "device-grid";
 
-                    card.innerHTML = content;
+                    Object.entries(devices).forEach(([deviceId, device]) => {
+                        const card = document.createElement("div");
+                        const isOn = device.state === "ON";
+                        card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
 
-                    if (device.type === "multiswitch" && device.switches) {
-                        const rows = card.querySelectorAll('.multi-switch-row');
-                        rows.forEach(row => {
-                            row.classList.add("clickable");
-                            row.style.cursor = "pointer";
-                            row.addEventListener('click', () => {
-                                const swId = row.getAttribute('data-swid');
-                                const swState = row.getAttribute('data-swstate');
-                                const newState = swState === "ON" ? "OFF" : "ON";
-                                set(ref(db, `floors/${floorId}/devices/${deviceId}/switches/${swId}`), newState);
+                        let content = `<div class="name">${device.name}</div><div class="type">${device.type}</div>`;
+
+                        if (device.type === "multiswitch" && device.switches) {
+                            content += `<div class="switch-unit">`;
+                            Object.entries(device.switches).forEach(([swId, swState]) => {
+                                content += `<div class="sw-row multi-switch-row" data-swid="${swId}" data-swstate="${swState}"><span>${swId.split('_')[1] || swId}</span> <b>${swState}</b></div>`;
                             });
-                        });
-                    }
+                            content += `</div>`;
+                        } else if (device.type === "camera") {
+                            content += `<div class="camera-box">LIVE STREAMING</div>`;
+                        } else {
+                            card.classList.add("clickable");
+                            card.style.cursor = "pointer";
+                            card.addEventListener("click", () => {
+                                const newState = isOn ? "OFF" : "ON";
+                                set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
+                            });
+                            content += `<span class="status ${isOn ? 'on' : 'off'}">${device.state}</span>`;
+                            if (device.type === "iron" && isOn) {
+                                content += `<div style="font-size:11px; margin-top:10px; color:#ff9800;">Safety cutoff active</div>`;
+                            }
+                            if (device.type === "light" && device.scheduleOn) {
+                                content += `<div style="font-size:11px; margin-top:10px; color:#2196f3;">Schedule: ${device.scheduleOn} - ${device.scheduleOff}</div>`;
+                            }
+                        }
 
-                    grid.appendChild(card);
+                        card.innerHTML = content;
+
+                        if (device.type === "multiswitch" && device.switches) {
+                            const rows = card.querySelectorAll('.multi-switch-row');
+                            rows.forEach(row => {
+                                row.classList.add("clickable");
+                                row.style.cursor = "pointer";
+                                row.addEventListener('click', () => {
+                                    const swId = row.getAttribute('data-swid');
+                                    const swState = row.getAttribute('data-swstate');
+                                    const newState = swState === "ON" ? "OFF" : "ON";
+                                    set(ref(db, `floors/${floorId}/devices/${deviceId}/switches/${swId}`), newState);
+                                });
+                            });
+                        }
+
+                        grid.appendChild(card);
+                    });
+                    bgContainer.appendChild(overlay);
+                    bgContainer.appendChild(grid);
+                    roomSection.appendChild(bgContainer);
+                    floorContainer.appendChild(roomSection);
                 });
             } else {
+                const grid = document.createElement("div");
+                grid.className = "device-grid";
                 grid.innerHTML = "<p style='color:#666'>No devices found.</p>";
+                floorContainer.appendChild(grid);
             }
-
-            section.appendChild(grid);
+            section.appendChild(floorContainer);
             container.appendChild(section);
         });
     });
