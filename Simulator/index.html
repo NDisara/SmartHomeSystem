@@ -26,7 +26,15 @@
         .floor-container { display: flex; flex-direction: column; gap: 20px; }
         
         /* Ground Layout */
-        .floor-container.ground-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .floor-container.ground-layout { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            grid-template-areas: 
+                "garage garage"
+                "kitchen living-room"
+                "utility porch";
+        }
         @media (min-width: 900px) {
             .floor-container.ground-layout {
                 grid-template-columns: 350px 1fr 1fr;
@@ -37,14 +45,18 @@
         }
         
         /* First Floor Layout */
-        .floor-container.first-layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .floor-container.first-layout { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            grid-template-areas: 
+                "bathroom bedroom-2"
+                "master-bedroom bedroom-2"
+                "balcony balcony";
+        }
         @media (min-width: 900px) {
             .floor-container.first-layout {
                 grid-template-columns: 1fr 1fr;
-                grid-template-areas: 
-                    "bathroom bedroom-2"
-                    "master-bedroom bedroom-2"
-                    "balcony balcony";
             }
         }
 
@@ -61,7 +73,13 @@
 
         .room-bg-container { position: relative; border-radius: 12px; overflow: hidden; margin-top: 15px; margin-bottom: 20px; background-size: cover; background-position: center; background-color: transparent; height: calc(100% - 60px); min-height: 250px; }
         .room-bg-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 1; transition: background-color 0.6s ease; }
-        .device-grid { position: relative; z-index: 2; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        .device-grid { position: relative; z-index: 2; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 160px)); gap: 15px; justify-content: start; }
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 
@@ -110,13 +128,30 @@
             if (floorId === 'first' || floor.name === 'First floor') layoutClass = 'first-layout';
             floorContainer.className = `floor-container ${layoutClass}`;
 
-            if (floor.devices) {
+            if (floor.devices || floorId === 'ground' || floorId === 'first' || floor.name === 'Ground floor' || floor.name === 'First floor') {
                 const rooms = {};
-                Object.entries(floor.devices).forEach(([deviceId, device]) => {
-                    const roomName = device.room || 'Unassigned';
-                    if (!rooms[roomName]) rooms[roomName] = {};
-                    rooms[roomName][deviceId] = device;
-                });
+                
+                // Pre-populate known rooms so the grid layout is always filled
+                if (floorId === 'ground' || floor.name === 'Ground floor') {
+                    rooms['Garage'] = {};
+                    rooms['Kitchen'] = {};
+                    rooms['Living room'] = {};
+                    rooms['Utility'] = {};
+                    rooms['Porch'] = {};
+                } else if (floorId === 'first' || floor.name === 'First floor') {
+                    rooms['Bathroom'] = {};
+                    rooms['Master Bedroom'] = {};
+                    rooms['Bedroom 2'] = {};
+                    rooms['Balcony'] = {};
+                }
+
+                if (floor.devices) {
+                    Object.entries(floor.devices).forEach(([deviceId, device]) => {
+                        const roomName = device.room || 'Unassigned';
+                        if (!rooms[roomName]) rooms[roomName] = {};
+                        rooms[roomName][deviceId] = device;
+                    });
+                }
 
                 Object.entries(rooms).forEach(([roomName, devices]) => {
                     const roomSection = document.createElement("div");
@@ -155,9 +190,12 @@
                     
                     const grid = document.createElement("div");
                     grid.className = "device-grid";
-
-                    Object.entries(devices).forEach(([deviceId, device]) => {
-                        const card = document.createElement("div");
+                    
+                    if (Object.keys(devices).length === 0) {
+                        grid.innerHTML = "<div style='color:#bbb; padding: 10px; font-size: 14px;'>No devices in this room.</div>";
+                    } else {
+                        Object.entries(devices).forEach(([deviceId, device]) => {
+                            const card = document.createElement("div");
                         const isOn = device.state === "ON";
                         card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
 
@@ -170,7 +208,10 @@
                             });
                             content += `</div>`;
                         } else if (device.type === "camera") {
-                            content += `<div class="camera-box">LIVE STREAMING</div>`;
+                            const camImageName = (device.room || roomName).toLowerCase().replace(/\s+/g, '_') + '.png';
+                            content += `<div class="camera-box" style="background-image: url('assets/${camImageName}'); background-size: cover; background-position: center; border: 1px solid #333; color: white; text-shadow: 1px 1px 3px black; font-weight: bold;">
+                                <div><span style="color: #ff4444; font-size: 14px; margin-right: 4px; animation: blink 1.5s infinite;">●</span> LIVE</div>
+                            </div>`;
                         } else {
                             card.classList.add("clickable");
                             card.style.cursor = "pointer";
@@ -205,6 +246,7 @@
 
                         grid.appendChild(card);
                     });
+                    }
                     bgContainer.appendChild(overlay);
                     bgContainer.appendChild(grid);
                     roomSection.appendChild(bgContainer);
