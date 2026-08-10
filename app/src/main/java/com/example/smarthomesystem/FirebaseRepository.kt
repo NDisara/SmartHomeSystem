@@ -4,6 +4,7 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ServerValue
 
 object FirebaseRepository {
     private const val DATABASE_URL = "https://smarthomesystem-70abf-default-rtdb.firebaseio.com"
@@ -57,13 +58,27 @@ object FirebaseRepository {
         return null
     }
 
-    fun updateDeviceState(floorId: String, deviceId: String, newState: String, turnedOnAt: Long = 0L) {
+    fun updateDeviceState(floorId: String, deviceId: String, newState: String) {
         val ref = database.getReference("floors/$floorId/devices/$deviceId")
         val updates = mutableMapOf<String, Any>("state" to newState)
         if (newState == "ON") {
-            updates["turnedOnAt"] = turnedOnAt
+            updates["turnedOnAt"] = ServerValue.TIMESTAMP
         } else {
             updates["turnedOnAt"] = 0L
+        }
+        ref.updateChildren(updates)
+    }
+
+    fun updateSchedule(floorId: String, deviceId: String, type: String, time: String) {
+        val field = if (type == "ON") "scheduleOn" else "scheduleOff"
+        database.getReference("floors/$floorId/devices/$deviceId/$field").setValue(time)
+    }
+
+    fun updateMaxDuration(floorId: String, deviceId: String, durationSec: Int, resetTimer: Boolean = false) {
+        val ref = database.getReference("floors/$floorId/devices/$deviceId")
+        val updates = mutableMapOf<String, Any>("maxDurationSec" to durationSec)
+        if (resetTimer) {
+            updates["turnedOnAt"] = ServerValue.TIMESTAMP
         }
         ref.updateChildren(updates)
     }
@@ -85,6 +100,15 @@ object FirebaseRepository {
                     child.getValue(UsageLog::class.java)?.let { logs.add(it) }
                 }
                 onDataChanged(logs)
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
+    fun listenToServerTimeOffset(onOffsetChanged: (Long) -> Unit) {
+        database.getReference(".info/serverTimeOffset").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                onOffsetChanged(snapshot.getValue(Long::class.java) ?: 0L)
             }
             override fun onCancelled(error: DatabaseError) {}
         })
@@ -127,12 +151,12 @@ object FirebaseRepository {
         val firstDevices = floorsRef.child(firstId).child("devices")
 
         // Master Bedroom
-        firstDevices.child("bedlamp1").setValue(Device(name = "Bedside lamp", type = "light", state = "ON", room = "Master Bedroom"))
+        firstDevices.child("bedlamp1").setValue(Device(name = "Bedside lamp", type = "light", state = "ON", room = "Master Bedroom", scheduleOn = "18:00", scheduleOff = "06:00"))
         firstDevices.child("bedroomac").setValue(Device(name = "Bedroom AC plug", type = "outlet", state = "ON", room = "Master Bedroom"))
 
         // Bedroom 2
         firstDevices.child("fan1").setValue(Device(name = "Ceiling fan", type = "outlet", state = "ON", room = "Bedroom 2"))
-        firstDevices.child("desklamp1").setValue(Device(name = "Study desk lamp", type = "light", state = "OFF", room = "Bedroom 2"))
+        firstDevices.child("desklamp1").setValue(Device(name = "Study desk lamp", type = "light", state = "OFF", room = "Bedroom 2", scheduleOn = "19:00", scheduleOff = "23:00"))
 
         // Bathroom
         firstDevices.child("vanitylight1").setValue(Device(name = "Vanity mirror light", type = "light", state = "ON", room = "Bathroom"))

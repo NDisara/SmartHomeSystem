@@ -11,13 +11,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarthomesystem.ui.theme.SecondaryText
+import kotlinx.coroutines.delay
 
 import java.util.Locale
 
 @Composable
-fun IronCard(device: Device, onToggle: () -> Unit) {
+fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(device.state, device.turnedOnAt) {
+        if (device.state == "ON" && device.turnedOnAt > 0) {
+            currentTime = System.currentTimeMillis() // Update immediately on restart
+            while (true) {
+                delay(1000)
+                currentTime = System.currentTimeMillis()
+            }
+        }
+    }
+
     val remainingSec = if (device.state == "ON" && device.turnedOnAt > 0) {
-        val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+        // Use maxOf to ensure we don't get negative elapsed time if currentTime is slightly behind the new turnedOnAt
+        val elapsed = (maxOf(currentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
         (device.maxDurationSec - elapsed).coerceAtLeast(0)
     } else null
 
@@ -55,10 +69,15 @@ fun IronCard(device: Device, onToggle: () -> Unit) {
 
         Text(text = "max active duration", color = Color.White, style = MaterialTheme.typography.bodySmall)
         
-        var sliderPosition by remember { mutableStateOf(device.maxDurationSec / 60f) }
+        var sliderPosition by remember(device.maxDurationSec) { mutableFloatStateOf(device.maxDurationSec / 60f) }
         Slider(
             value = sliderPosition,
             onValueChange = { sliderPosition = it },
+            onValueChangeFinished = {
+                val newDurationSec = (sliderPosition * 60).toInt()
+                // Reset the timer if the device is currently ON so it starts fresh from the new duration
+                FirebaseRepository.updateMaxDuration(floorId, device.id, newDurationSec, device.state == "ON")
+            },
             valueRange = 0f..60f,
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,

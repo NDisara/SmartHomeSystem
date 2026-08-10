@@ -113,6 +113,48 @@ fun FloorDetailScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
 
+    // --- Safety Cutoff Timer Simulation ---
+    LaunchedEffect(devices) {
+        while (true) {
+            devices.forEach { device ->
+                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
+                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+                    if (elapsed >= device.maxDurationSec) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
+                    }
+                }
+            }
+            delay(2000) // Check every 2 seconds for safety
+        }
+    }
+
+    // --- Auto-scheduled devices check (Improved for precise time) ---
+    LaunchedEffect(devices) {
+        while (true) {
+            val calendar = Calendar.getInstance()
+            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+
+            devices.forEach { device ->
+                val startParts = device.scheduleOn?.split(":")
+                val endParts = device.scheduleOff?.split(":")
+
+                if (startParts?.size == 2 && endParts?.size == 2) {
+                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
+                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
+
+                    if (startMinutes != null && endMinutes != null) {
+                        val shouldBeOn = if (startMinutes <= endMinutes) {
+                            currentTotalMinutes in startMinutes until endMinutes
+                        } else {
+                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
+                        }
+
+                        val targetState = if (shouldBeOn) "ON" else "OFF"
+                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
+                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                        }
                 // Device List Sections (Grouped by Actual Rooms)
                 activeRooms.forEach { roomName ->
                     val roomDevices = devices.filter { it.room == roomName }
@@ -123,6 +165,7 @@ fun FloorDetailScreen(
                     Spacer(Modifier.height(24.dp))
                 }
             }
+            delay(30000) // Check every 30 seconds
             
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -230,6 +273,56 @@ fun FloorPlanGrid(devices: List<Device>, onDeviceClick: (String) -> Unit) {
 }
 
 @Composable
+fun DeviceRowItem(
+    device: Device,
+    onClick: () -> Unit
+) {
+    val statusColor = getDeviceStatusColor(device)
+    val deviceIcon = getDeviceIcon(device)
+
+    val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isIronOn, device.turnedOnAt) {
+        if (isIronOn && device.turnedOnAt > 0) {
+            currentTime = System.currentTimeMillis() // Update immediately on restart
+            while (true) {
+                delay(1000)
+                currentTime = System.currentTimeMillis()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
+        }
+    }
+
+    val adjustedCurrentTime = currentTime + serverTimeOffset
+
+    val statusText = when {
+        isIronOn && device.maxDurationSec > 0 && device.turnedOnAt > 0 -> {
+            val elapsedSec = (maxOf(adjustedCurrentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
+            val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
+            val mins = remainingSec / 60
+            val secs = remainingSec % 60
+            String.format("On · %02d:%02d left", mins, secs)
+        }
+        device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
+        else -> {
+            val baseStatus = when (device.state.uppercase()) {
+                "ON" -> "On"
+                "OFF" -> "Off"
+                else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
+            }
+            if (device.scheduleOn != null && device.scheduleOff != null) {
+                "$baseStatus · ${device.scheduleOn} - ${device.scheduleOff}"
+            } else {
+                baseStatus
+            }
+        }
 fun DeviceMapIcon(device: Device, modifier: Modifier) {
     val color = getDeviceStatusColor(device)
     Box(
