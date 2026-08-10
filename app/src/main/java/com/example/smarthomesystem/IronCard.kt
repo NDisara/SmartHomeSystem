@@ -18,6 +18,13 @@ import java.util.Locale
 @Composable
 fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
+        }
+    }
 
     LaunchedEffect(device.state, device.turnedOnAt) {
         if (device.state == "ON" && device.turnedOnAt > 0) {
@@ -29,9 +36,11 @@ fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
         }
     }
 
+    val adjustedCurrentTime = currentTime + serverTimeOffset
+
     val remainingSec = if (device.state == "ON" && device.turnedOnAt > 0) {
-        // Use maxOf to ensure we don't get negative elapsed time if currentTime is slightly behind the new turnedOnAt
-        val elapsed = (maxOf(currentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
+        // Use maxOf to ensure we don't get negative elapsed time if adjustedCurrentTime is slightly behind the new turnedOnAt
+        val elapsed = (maxOf(adjustedCurrentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
         (device.maxDurationSec - elapsed).coerceAtLeast(0)
     } else null
 
@@ -75,7 +84,10 @@ fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
             onValueChange = { sliderPosition = it },
             onValueChangeFinished = {
                 val newDurationSec = (sliderPosition * 60).toInt()
-                // Reset the timer if the device is currently ON so it starts fresh from the new duration
+                // Optimistically reset local timer if device is ON
+                if (device.state == "ON") {
+                    currentTime = System.currentTimeMillis()
+                }
                 FirebaseRepository.updateMaxDuration(floorId, device.id, newDurationSec, device.state == "ON")
             },
             valueRange = 0f..60f,
