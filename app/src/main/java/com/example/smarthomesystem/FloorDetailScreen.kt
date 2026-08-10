@@ -350,13 +350,24 @@ fun DeviceRowItem(
     val deviceIcon = getDeviceIcon(device)
 
     val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(isIronOn, device.turnedOnAt) {
+        if (isIronOn && device.turnedOnAt > 0) {
+            while (true) {
+                currentTime = System.currentTimeMillis()
+                delay(1000)
+            }
+        }
+    }
 
     val statusText = when {
         isIronOn && device.maxDurationSec > 0 && device.turnedOnAt > 0 -> {
-            val elapsedSec = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+            val elapsedSec = (currentTime - device.turnedOnAt) / 1000
             val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
-            val remainingMin = (remainingSec + 59) / 60
-            "On · ${remainingMin}m left"
+            val mins = remainingSec / 60
+            val secs = remainingSec % 60
+            String.format("On · %02d:%02d left", mins, secs)
         }
         device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
         else -> {

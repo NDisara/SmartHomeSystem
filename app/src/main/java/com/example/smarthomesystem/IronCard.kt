@@ -11,13 +11,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarthomesystem.ui.theme.SecondaryText
+import kotlinx.coroutines.delay
 
 import java.util.Locale
 
 @Composable
 fun IronCard(device: Device, onToggle: () -> Unit) {
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(device.state, device.turnedOnAt) {
+        if (device.state == "ON" && device.turnedOnAt > 0) {
+            while (true) {
+                currentTime = System.currentTimeMillis()
+                delay(1000)
+            }
+        }
+    }
+
     val remainingSec = if (device.state == "ON" && device.turnedOnAt > 0) {
-        val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+        val elapsed = (currentTime - device.turnedOnAt) / 1000
         (device.maxDurationSec - elapsed).coerceAtLeast(0)
     } else null
 
