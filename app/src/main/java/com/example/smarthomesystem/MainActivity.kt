@@ -4,41 +4,62 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.smarthomesystem.ui.theme.SmartHomeSystemTheme
+import com.example.smarthomesystem.ui.theme.SecondaryText
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FirebaseRepository.addSampleData()
         enableEdgeToEdge()
         setContent {
             SmartHomeSystemTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    AppNavigation(modifier = Modifier.padding(innerPadding))
+                val navController = rememberNavController()
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+                
+                val mainRoutes = listOf("home", "alerts", "reports", "settings")
+                val showBottomBar = currentRoute in mainRoutes
+
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = { 
+                        if (showBottomBar) {
+                            BottomNavigationBar(navController, currentRoute) 
+                        }
+                    }
+                ) { innerPadding ->
+                    AppNavigation(navController, modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -46,23 +67,91 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation(modifier: Modifier = Modifier) {
-    val navController: NavHostController = rememberNavController()
+fun BottomNavigationBar(navController: NavHostController, currentRoute: String?) {
+    NavigationBar(
+        containerColor = Color(0xFF121212),
+        tonalElevation = 0.dp
+    ) {
+        val items = listOf(
+            Triple("home", Icons.Default.Home, "Home"),
+            Triple("alerts", Icons.Filled.Notifications, "Alerts"),
+            Triple("reports", Icons.Default.BarChart, "Reports"),
+            Triple("settings", Icons.Default.Settings, "Settings")
+        )
 
-    NavHost(navController = navController, startDestination = "floorList") {
-        composable("floorList") {
+        items.forEach { (route, icon, label) ->
+            NavigationBarItem(
+                icon = { Icon(icon, contentDescription = label) },
+                selected = currentRoute == route,
+                onClick = {
+                    navController.navigate(route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color(0xFF2196F3),
+                    unselectedIconColor = Color(0xFF666666),
+                    indicatorColor = Color.Transparent
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun AppNavigation(navController: NavHostController, modifier: Modifier = Modifier) {
+    NavHost(navController = navController, startDestination = "login") {
+        composable("login") {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate("home") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable("home") {
             FloorListScreen(
                 modifier = modifier,
-                onFloorClick = { floorId -> navController.navigate("floorDetail/$floorId") },
-                onReportClick = { navController.navigate("report") }
+                onFloorClick = { floorId -> navController.navigate("floorDetail/$floorId") }
             )
+        }
+        composable("alerts") {
+            AlertsPlaceholderScreen(modifier)
+        }
+        composable("reports") {
+            ReportScreen(modifier = modifier)
+        }
+        composable("settings") {
+            SettingsPlaceholderScreen(navController, modifier)
         }
         composable("floorDetail/{floorId}") { backStackEntry ->
             val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
-            FloorDetailScreen(floorId = floorId, modifier = modifier)
+            FloorDetailScreen(
+                floorId = floorId,
+                modifier = Modifier.fillMaxSize(),
+                onDeviceClick = { deviceId: String -> 
+                    if (deviceId == "gang1") {
+                        navController.navigate("multiSwitchDetail/$floorId/$deviceId")
+                    } else {
+                        navController.navigate("deviceDetail/$floorId/$deviceId")
+                    }
+                }
+            )
         }
-        composable("report") {
-            ReportScreen(modifier = modifier)
+        composable("deviceDetail/{floorId}/{deviceId}") { backStackEntry ->
+            val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            DeviceDetailScreen(floorId = floorId, deviceId = deviceId)
+        }
+        composable("multiSwitchDetail/{floorId}/{deviceId}") { backStackEntry ->
+            val floorId = backStackEntry.arguments?.getString("floorId") ?: ""
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            MultiSwitchDetailScreen(floorId = floorId, deviceId = deviceId)
         }
     }
 }
@@ -70,10 +159,11 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 @Composable
 fun FloorListScreen(
     modifier: Modifier = Modifier,
-    onFloorClick: (String) -> Unit,
-    onReportClick: () -> Unit
+    onFloorClick: (String) -> Unit
 ) {
     var floors by remember { mutableStateOf<List<Floor>>(emptyList()) }
+    var showAddFloorDialog by remember { mutableStateOf(false) }
+    var newFloorName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         FirebaseRepository.listenToFloors { updatedFloors ->
@@ -81,40 +171,196 @@ fun FloorListScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-            Text(
-                text = "My Floors",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.weight(1f)
-            )
-            Button(onClick = onReportClick) {
-                Text("View Reports")
+    if (showAddFloorDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddFloorDialog = false },
+            title = { Text("Add Floor Plan", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = newFloorName,
+                    onValueChange = { newFloorName = it },
+                    label = { Text("Floor Name", color = Color.Gray) },
+                    placeholder = { Text("e.g. Garage", color = Color.DarkGray) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF2196F3),
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newFloorName.isNotBlank()) {
+                            FirebaseRepository.addFloor(newFloorName)
+                            newFloorName = ""
+                            showAddFloorDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Text("Add", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddFloorDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E)
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF121212))
+            .padding(24.dp)
+    ) {
+        Text("Home", color = Color(0xFF888888), fontSize = 14.sp)
+        Text(
+            text = "My home",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Text(
+            text = "${floors.size} floor plans",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF888888)
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (floors.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White)
+                    Spacer(Modifier.height(16.dp))
+                    Text(text = "Looking for floors...", color = Color(0xFF666666))
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(floors) { floor ->
+                    FloorItem(floor = floor, onClick = { onFloorClick(floor.id) })
+                }
             }
         }
 
-        if (floors.isEmpty()) {
-            Text(text = "Loading floors...")
-        } else {
-            LazyColumn {
-                items(floors) { floor ->
-                    FloorCard(floor = floor, onClick = { onFloorClick(floor.id) })
-                }
-            }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { showAddFloorDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .border(1.dp, Color(0xFF333333), RoundedCornerShape(12.dp)),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+            Spacer(modifier = Modifier.size(8.dp))
+            Text("Add floor plan", color = Color.White)
         }
     }
 }
 
 @Composable
-fun FloorCard(floor: Floor, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .clickable { onClick() }
+fun FloorItem(floor: Floor, onClick: () -> Unit) {
+    var devices by remember(floor.id) { mutableStateOf<List<Device>>(emptyList()) }
+
+    LaunchedEffect(floor.id) {
+        FirebaseRepository.listenToDevices(floor.id) { updatedDevices ->
+            devices = updatedDevices
+        }
+    }
+
+    val roomCount = remember(devices) {
+        devices.map { it.room }.filter { it.isNotBlank() }.distinct().size
+    }
+    
+    val deviceCount = remember(devices) { devices.size }
+
+    Surface(
+        onClick = onClick,
+        color = Color(0xFF1A1A1A),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFF222222)),
+        modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
     ) {
-        Row(modifier = Modifier.padding(16.dp)) {
-            Text(text = floor.name, style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0xFF222222), CircleShape)
+                    .border(1.dp, Color(0xFF333333), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Home, contentDescription = null, tint = Color(0xFF2196F3), modifier = Modifier.size(20.dp))
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = floor.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "$deviceCount devices · $roomCount rooms",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF666666)
+                )
+            }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF444444)
+            )
+        }
+    }
+}
+
+@Composable
+fun AlertsPlaceholderScreen(modifier: Modifier) {
+    Column(modifier.fillMaxSize().background(Color(0xFF121212)).padding(24.dp)) {
+        Text("Alerts", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun SettingsPlaceholderScreen(navController: NavHostController, modifier: Modifier) {
+    Column(modifier.fillMaxSize().background(Color(0xFF121212)).padding(24.dp)) {
+        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(32.dp))
+        Button(
+            onClick = { FirebaseRepository.addSampleData() },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Reset / Add Sample Data")
+        }
+        Spacer(Modifier.weight(1f))
+        Button(
+            onClick = {
+                navController.navigate("login") {
+                    popUpTo(0)
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.1f), contentColor = Color.Red),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f))
+        ) {
+            Text("Logout", fontWeight = FontWeight.Bold)
         }
     }
 }

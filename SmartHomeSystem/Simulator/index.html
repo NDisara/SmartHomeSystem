@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Home Simulator</title>
+    <style>
+        body { 
+            margin: 0; padding: 24px;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #121212;
+            color: #FFFFFF;
+        }
+        
+        .container { 
+            max-width: 600px; margin: 0 auto;
+        }
+
+        #status-bar { 
+            color: #9E9E9E;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .floor-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #FFFFFF;
+            margin-bottom: 8px;
+            margin-top: 32px;
+        }
+
+        /* Abstract Grid Simulation from app */
+        .grid-overlay {
+            background-color: #1E1E1E;
+            border-radius: 24px;
+            height: 120px;
+            margin-bottom: 32px;
+            position: relative;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+        }
+        
+        .grid-node {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .grid-node-inner {
+            width: 12px; height: 12px;
+            border-radius: 2px;
+        }
+
+        .device-row {
+            display: flex; flex-direction: column;
+            padding: 12px 0 0 0;
+        }
+
+        .device-row-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .device-info { display: flex; flex-direction: column; }
+        .device-name { font-size: 16px; color: #FFFFFF; }
+        .device-extras { font-size: 12px; color: #9E9E9E; margin-top: 4px; }
+
+        .device-status-container { display: flex; align-items: center; gap: 12px; }
+        .status-text { font-size: 14px; text-transform: lowercase; }
+        
+        .status-green { color: #4CAF50; }
+        .status-red { color: #F44336; }
+        .status-blue { color: #2196F3; }
+        .status-gray { color: #9E9E9E; }
+
+        .divider {
+            height: 1px;
+            background-color: #333333;
+            margin-top: 12px;
+            width: 100%;
+        }
+
+        /* Sub-switch for multiswitch */
+        .sub-switch {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; margin-left: 16px;
+        }
+        .sub-switch-name { font-size: 14px; color: #CCCCCC; }
+
+        /* Material-style Toggle Switch */
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #9E9E9E; transition: .3s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #4caf50; }
+        input:checked + .slider:before { transform: translateX(16px); }
+        input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="status-bar">Connecting...</div>
+    <div id="floors-container"></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCY0NJZ7Z2Bh6eRVvk4OhCMpa-rdbeQ1Gw",
+        authDomain: "smarthomesystem-70abf.firebaseapp.com",
+        databaseURL: "https://smarthomesystem-70abf-default-rtdb.firebaseio.com",
+        projectId: "smarthomesystem-70abf",
+        storageBucket: "smarthomesystem-70abf.firebasestorage.app",
+        messagingSenderId: "870635457059",
+        appId: "1:870635457059:web:45e3a3c2dcfd754e577f96"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const container = document.getElementById("floors-container");
+    const statusBar = document.getElementById("status-bar");
+
+    container.addEventListener("change", (e) => {
+        if (e.target.tagName === "INPUT" && e.target.type === "checkbox") {
+            const floorId = e.target.dataset.floor;
+            const deviceId = e.target.dataset.device;
+            const swId = e.target.dataset.switch;
+            const newState = e.target.checked ? "ON" : "OFF";
+            
+            if (swId) {
+                set(ref(db, `floors/${floorId}/devices/${deviceId}/switches/${swId}`), newState);
+            } else {
+                set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
+            }
+        }
+    });
+
+    onValue(ref(db, "floors"), (snapshot) => {
+        statusBar.innerHTML = "grid overlay - " + (snapshot.exists() ? Object.keys(snapshot.val()).length : 0) + " floors monitored";
+        container.innerHTML = "";
+
+        const data = snapshot.val();
+        if (!data) return;
+
+        Object.entries(data).forEach(([floorId, floor]) => {
+            const section = document.createElement("div");
+            
+            let floorHtml = `<div class="floor-name">${floor.name || floorId}</div>`;
+            
+            if (floor.devices) {
+                // Add abstract grid overlay representation from FloorDetailScreen
+                floorHtml += `<div class="grid-overlay">`;
+                Object.values(floor.devices).slice(0,4).forEach(device => {
+                    const isOn = device.state === "ON";
+                    const isErr = device.state === "ERROR";
+                    const isCam = device.type === "camera";
+                    let rgb = "158,158,158"; // secondary
+                    if (isOn) rgb = "76,175,80";
+                    if (isErr) rgb = "244,67,54";
+                    
+                    floorHtml += `
+                    <div class="grid-node" style="background-color: rgba(${rgb}, 0.2)">
+                        <div class="grid-node-inner" style="background-color: rgb(${rgb})"></div>
+                    </div>`;
+                });
+                floorHtml += `</div>`;
+                
+                // Add device rows
+                Object.entries(floor.devices).forEach(([deviceId, device]) => {
+                    const isOn = device.state === "ON";
+                    let statusText = device.state ? device.state.toLowerCase() : "off";
+                    let statusClass = "status-gray";
+                    
+                    if (device.type === "camera") {
+                        statusText = "streaming";
+                        statusClass = "status-blue";
+                    } else if (statusText === "on") {
+                        statusClass = "status-green";
+                    } else if (statusText === "error") {
+                        statusClass = "status-red";
+                    }
+
+                    let rowHtml = `<div class="device-row">`;
+                    rowHtml += `<div class="device-row-content">`;
+                    
+                    // Left side (Name & Extras)
+                    rowHtml += `<div class="device-info">`;
+                    rowHtml += `<div class="device-name">${device.name}</div>`;
+                    
+                    let extras = "";
+                    if (device.type === "iron" && isOn) extras += "Safety cutoff active";
+                    if (device.type === "light" && device.scheduleOn) extras += `Schedule: ${device.scheduleOn}-${device.scheduleOff}`;
+                    if (extras) rowHtml += `<div class="device-extras">${extras}</div>`;
+                    rowHtml += `</div>`; // end device-info
+
+                    // Right side (Status Text & Toggle)
+                    rowHtml += `<div class="device-status-container">`;
+                    
+                    if (device.type === "multiswitch" && device.switches) {
+                        rowHtml += `<span class="status-text ${statusClass}">multiswitch</span>`;
+                    } else if (device.type === "camera") {
+                        rowHtml += `<span class="status-text ${statusClass}">${statusText}</span>`;
+                    } else {
+                        rowHtml += `<span class="status-text ${statusClass}">${statusText}</span>`;
+                        rowHtml += `
+                            <label class="switch">
+                                <input type="checkbox" data-floor="${floorId}" data-device="${deviceId}" ${isOn ? 'checked' : ''}>
+                                <span class="slider"></span>
+                            </label>
+                        `;
+                    }
+                    rowHtml += `</div>`; // end right side
+                    rowHtml += `</div>`; // end row-content
+
+                    // Sub-switches for multiswitch
+                    if (device.type === "multiswitch" && device.switches) {
+                        Object.entries(device.switches).forEach(([swId, swState]) => {
+                            const isSwOn = swState === "ON";
+                            rowHtml += `
+                            <div class="sub-switch">
+                                <span class="sub-switch-name">${swId.split('_')[1] || swId}</span>
+                                <div class="device-status-container">
+                                    <span class="status-text ${isSwOn ? 'status-green' : 'status-gray'}">${swState.toLowerCase()}</span>
+                                    <label class="switch">
+                                        <input type="checkbox" data-floor="${floorId}" data-device="${deviceId}" data-switch="${swId}" ${isSwOn ? 'checked' : ''}>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            `;
+                        });
+                    }
+
+                    rowHtml += `<div class="divider"></div>`;
+                    rowHtml += `</div>`; // end device-row
+                    
+                    floorHtml += rowHtml;
+                });
+            } else {
+                floorHtml += `<div class="device-row"><div class="device-name" style="color:#9E9E9E">No devices</div></div>`;
+            }
+
+            section.innerHTML = floorHtml;
+            container.appendChild(section);
+        });
+    });
+</script>
+</body>
+</html>
