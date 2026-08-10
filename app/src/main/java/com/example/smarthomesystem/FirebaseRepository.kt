@@ -56,6 +56,11 @@ object FirebaseRepository {
         ref.updateChildren(updates)
     }
 
+    fun updateSchedule(floorId: String, deviceId: String, type: String, time: String) {
+        val field = if (type == "ON") "scheduleOn" else "scheduleOff"
+        database.getReference("floors/$floorId/devices/$deviceId/$field").setValue(time)
+    }
+
     fun updateSwitchState(floorId: String, deviceId: String, switchId: String, newState: String) {
         database.getReference("floors/$floorId/devices/$deviceId/switches/$switchId").setValue(newState)
     }
@@ -115,12 +120,12 @@ object FirebaseRepository {
         val firstDevices = floorsRef.child(firstId).child("devices")
 
         // Master Bedroom
-        firstDevices.child("bedlamp1").setValue(Device(name = "Bedside lamp", type = "light", state = "ON", room = "Master Bedroom"))
+        firstDevices.child("bedlamp1").setValue(Device(name = "Bedside lamp", type = "light", state = "ON", room = "Master Bedroom", scheduleOn = "18:00", scheduleOff = "06:00"))
         firstDevices.child("bedroomac").setValue(Device(name = "Bedroom AC plug", type = "outlet", state = "ON", room = "Master Bedroom"))
 
         // Bedroom 2
         firstDevices.child("fan1").setValue(Device(name = "Ceiling fan", type = "outlet", state = "ON", room = "Bedroom 2"))
-        firstDevices.child("desklamp1").setValue(Device(name = "Study desk lamp", type = "light", state = "OFF", room = "Bedroom 2"))
+        firstDevices.child("desklamp1").setValue(Device(name = "Study desk lamp", type = "light", state = "OFF", room = "Bedroom 2", scheduleOn = "19:00", scheduleOff = "23:00"))
 
         // Bathroom
         firstDevices.child("vanitylight1").setValue(Device(name = "Vanity mirror light", type = "light", state = "ON", room = "Bathroom"))

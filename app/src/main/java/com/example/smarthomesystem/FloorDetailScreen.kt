@@ -144,30 +144,36 @@ fun FloorDetailScreen(
         }
     }
 
-    // --- Auto-scheduled lights check ---
+    // --- Auto-scheduled devices check (Improved for precise time) ---
     LaunchedEffect(devices) {
         while (true) {
-            val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val calendar = Calendar.getInstance()
+            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
 
             devices.forEach { device ->
-                val startHour = device.scheduleOn?.substringBefore(":")?.toIntOrNull()
-                val endHour = device.scheduleOff?.substringBefore(":")?.toIntOrNull()
+                val startParts = device.scheduleOn?.split(":")
+                val endParts = device.scheduleOff?.split(":")
 
-                if (startHour != null && endHour != null) {
-                    val shouldBeOn = if (startHour <= endHour) {
-                        currentHour in startHour until endHour
-                    } else {
-                        currentHour >= startHour || currentHour < endHour
-                    }
+                if (startParts?.size == 2 && endParts?.size == 2) {
+                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
+                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
 
-                    val targetState = if (shouldBeOn) "ON" else "OFF"
-                    if (device.state != targetState) {
-                        FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
-                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                    if (startMinutes != null && endMinutes != null) {
+                        val shouldBeOn = if (startMinutes <= endMinutes) {
+                            currentTotalMinutes in startMinutes until endMinutes
+                        } else {
+                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
+                        }
+
+                        val targetState = if (shouldBeOn) "ON" else "OFF"
+                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
+                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                        }
                     }
                 }
             }
-            delay(30000)
+            delay(30000) // Check every 30 seconds
         }
     }
 }
@@ -353,9 +359,18 @@ fun DeviceRowItem(
             "On · ${remainingMin}m left"
         }
         device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
-        device.state.uppercase() == "ON" -> "On"
-        device.state.uppercase() == "OFF" -> "Off"
-        else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
+        else -> {
+            val baseStatus = when (device.state.uppercase()) {
+                "ON" -> "On"
+                "OFF" -> "Off"
+                else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
+            }
+            if (device.scheduleOn != null && device.scheduleOff != null) {
+                "$baseStatus · ${device.scheduleOn} - ${device.scheduleOff}"
+            } else {
+                baseStatus
+            }
+        }
     }
 
     val rowModifier = if (isIronOn) {
