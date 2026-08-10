@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarthomesystem.ui.theme.*
 import java.util.Calendar
 import kotlinx.coroutines.delay
 
@@ -38,12 +37,64 @@ fun FloorDetailScreen(
     var showAddDeviceDialog by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
+    // Debugging check
+    println("FloorDetailScreen: Recomposing for floor $floorId. Dialog visible: $showAddDeviceDialog")
+
     LaunchedEffect(floorId) {
         FirebaseRepository.listenToFloors { floors ->
             floorName = floors.find { it.id == floorId }?.name ?: "Unknown Floor"
         }
         FirebaseRepository.listenToDevices(floorId) { updatedDevices ->
             devices = updatedDevices
+        }
+    }
+
+    // --- Safety Cutoff Timer Simulation ---
+    LaunchedEffect(devices) {
+        while (true) {
+            devices.forEach { device ->
+                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
+                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+                    if (elapsed >= device.maxDurationSec) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
+                    }
+                }
+            }
+            delay(2000) // Check every 2 seconds for safety
+        }
+    }
+
+    // --- Auto-scheduled devices check (Improved for precise time) ---
+    LaunchedEffect(devices) {
+        while (true) {
+            val calendar = Calendar.getInstance()
+            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+
+            devices.forEach { device ->
+                val startParts = device.scheduleOn?.split(":")
+                val endParts = device.scheduleOff?.split(":")
+
+                if (startParts?.size == 2 && endParts?.size == 2) {
+                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
+                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
+
+                    if (startMinutes != null && endMinutes != null) {
+                        val shouldBeOn = if (startMinutes <= endMinutes) {
+                            currentTotalMinutes in startMinutes until endMinutes
+                        } else {
+                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
+                        }
+
+                        val targetState = if (shouldBeOn) "ON" else "OFF"
+                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
+                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                        }
+                    }
+                }
+            }
+            delay(30000) // Check every 30 seconds
         }
     }
 
@@ -76,9 +127,9 @@ fun FloorDetailScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = floorName,
                         style = MaterialTheme.typography.headlineMedium,
@@ -91,15 +142,6 @@ fun FloorDetailScreen(
                         fontSize = 14.sp
                     )
                 }
-                IconButton(
-                    onClick = { showAddDeviceDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Color(0xFF1E1E1E), CircleShape)
-                        .border(1.dp, Color(0xFF333333), CircleShape)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -107,9 +149,13 @@ fun FloorDetailScreen(
             if (devices.isEmpty()) {
                 EmptyFloorState { showAddDeviceDialog = true }
             } else {
-                // REAL WORLD: Only show floor plan grid if it's the Ground floor or if it has the standard 4 rooms
-                if (floorId == "ground" && activeRooms.isNotEmpty()) {
-                    FloorPlanGrid(devices, onDeviceClick)
+                // Show floor plan grid for Ground floor or First floor
+                val isMainFloor = floorName.contains("Ground", ignoreCase = true) || 
+                                 floorName.contains("First", ignoreCase = true) ||
+                                 floorId == "ground"
+                
+                if (isMainFloor && activeRooms.isNotEmpty()) {
+                    FloorPlanGrid(floorName, devices, onDeviceClick)
                     Spacer(modifier = Modifier.height(32.dp))
                 }
 
@@ -125,6 +171,23 @@ fun FloorDetailScreen(
             }
             
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        // --- NEW: Using a Floating Action Button for better reliability ---
+        FloatingActionButton(
+            onClick = { 
+                println("FAB Clicked: Opening Add Device Dialog")
+                showAddDeviceDialog = true 
+            },
+            containerColor = Color(0xFF2196F3),
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp)
+                .size(64.dp) // Large touch target
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Device", modifier = Modifier.size(32.dp))
         }
     }
 }
@@ -201,26 +264,61 @@ fun EmptyFloorState(onAddClick: () -> Unit) {
 }
 
 @Composable
-fun FloorPlanGrid(devices: List<Device>, onDeviceClick: (String) -> Unit) {
-    Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-        Column(modifier = Modifier.width(280.dp).height(160.dp).border(1.dp, Color(0xFF222222), RoundedCornerShape(12.dp))) {
-            Row(modifier = Modifier.weight(1f)) {
-                Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Kitchen", color = Color(0xFF444444), fontSize = 10.sp) }
-                Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Porch", color = Color(0xFF444444), fontSize = 10.sp) }
-            }
-            Row(modifier = Modifier.weight(1f)) {
-                Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Utility", color = Color(0xFF444444), fontSize = 10.sp) }
-                Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Living", color = Color(0xFF444444), fontSize = 10.sp) }
+fun FloorPlanGrid(floorName: String, devices: List<Device>, onDeviceClick: (String) -> Unit) {
+    val isFirstFloor = floorName.contains("First", ignoreCase = true)
+    val isGroundFloor = floorName.contains("Ground", ignoreCase = true) || floorName.lowercase() == "ground"
+
+    val gridHeight = if (isGroundFloor) 220.dp else 160.dp
+
+    Box(modifier = Modifier.fillMaxWidth().height(gridHeight + 40.dp), contentAlignment = Alignment.Center) {
+        Column(modifier = Modifier.width(280.dp).height(gridHeight).border(1.dp, Color(0xFF222222), RoundedCornerShape(12.dp))) {
+            if (isGroundFloor) {
+                // Row 1: Kitchen | Porch
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Kitchen", color = Color(0xFF444444), fontSize = 10.sp) }
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Porch", color = Color(0xFF444444), fontSize = 10.sp) }
+                }
+                // Row 2: Utility | Living
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Utility", color = Color(0xFF444444), fontSize = 10.sp) }
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Living room", color = Color(0xFF444444), fontSize = 10.sp) }
+                }
+                // Row 3: Garage
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Garage", color = Color(0xFF444444), fontSize = 10.sp) }
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)))
+                }
+            } else {
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Master Bed", color = Color(0xFF444444), fontSize = 10.sp) }
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Bathroom", color = Color(0xFF444444), fontSize = 10.sp) }
+                }
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Bedroom 2", color = Color(0xFF444444), fontSize = 10.sp) }
+                    Box(Modifier.weight(1f).border(0.5.dp, Color(0xFF222222)).padding(8.dp)) { Text("Balcony", color = Color(0xFF444444), fontSize = 10.sp) }
+                }
             }
         }
-        // Simplified icon mapping for ground floor
+        // Icon mapping
         devices.forEach { device ->
-            val pos = when (device.room) {
-                "Kitchen" -> (-100).dp to (-40).dp
-                "Porch" -> 100.dp to (-40).dp
-                "Utility" -> (-100).dp to 40.dp
-                "Living room" -> 100.dp to 40.dp
-                else -> null
+            val room = device.room.lowercase()
+            val pos = if (isGroundFloor) {
+                when {
+                    "kitchen" in room -> (-100).dp to (-70).dp
+                    "porch" in room -> 100.dp to (-70).dp
+                    "utility" in room -> (-100).dp to 0.dp
+                    "living" in room -> 100.dp to 0.dp
+                    "garage" in room -> (-100).dp to 70.dp
+                    else -> null
+                }
+            } else {
+                when {
+                    "master bedroom" in room || "master bed" in room -> (-100).dp to (-40).dp
+                    "bathroom" in room -> 100.dp to (-40).dp
+                    "bedroom 2" in room -> (-100).dp to 40.dp
+                    "balcony" in room -> 100.dp to 40.dp
+                    else -> null
+                }
             }
             pos?.let { (x, y) ->
                 DeviceMapIcon(device, Modifier.offset(x, y).clickable { onDeviceClick(device.id) })
@@ -230,13 +328,87 @@ fun FloorPlanGrid(devices: List<Device>, onDeviceClick: (String) -> Unit) {
 }
 
 @Composable
+fun DeviceItemRow(
+    device: Device,
+    onClick: () -> Unit
+) {
+    val statusColor = getDeviceStatusColor(device)
+    val deviceIcon = getDeviceIcon(device)
+
+    val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isIronOn, device.turnedOnAt) {
+        if (isIronOn && device.turnedOnAt > 0) {
+            currentTime = System.currentTimeMillis() // Update immediately on restart
+            while (true) {
+                delay(1000)
+                currentTime = System.currentTimeMillis()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
+        }
+    }
+
+    val adjustedCurrentTime = currentTime + serverTimeOffset
+
+    val statusText = when {
+        isIronOn && device.maxDurationSec > 0 && device.turnedOnAt > 0 -> {
+            val elapsedSec = (maxOf(adjustedCurrentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
+            val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
+            val mins = remainingSec / 60
+            val secs = remainingSec % 60
+            String.format("On · %02d:%02d left", mins, secs)
+        }
+        device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
+        else -> {
+            val baseStatus = when (device.state.uppercase()) {
+                "ON" -> "On"
+                "OFF" -> "Off"
+                else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
+            }
+            if (device.scheduleOn != null && device.scheduleOff != null) {
+                "$baseStatus · ${device.scheduleOn} - ${device.scheduleOff}"
+            } else {
+                baseStatus
+            }
+        }
+    }
+
+    Surface(
+        onClick = onClick,
+        color = if (isIronOn) Color(0xFF2D1B1B) else Color(0xFF1A1A1A),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(deviceIcon, null, tint = statusColor, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(16.dp))
+            Text(text = device.name, color = Color.White, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+            Text(text = statusText, color = statusColor, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
 fun DeviceMapIcon(device: Device, modifier: Modifier) {
     val color = getDeviceStatusColor(device)
+    val icon = if (device.type.lowercase() == "outlet" || device.type.lowercase() == "multiswitch") {
+        getRoomIcon(device.room)
+    } else {
+        getDeviceIcon(device)
+    }
+    
     Box(
         modifier = modifier.size(32.dp).background(Color(0xFF1A1A1A), CircleShape).border(1.dp, color.copy(0.4f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Icon(getDeviceIcon(device), null, tint = color, modifier = Modifier.size(16.dp))
+        Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -249,26 +421,6 @@ fun RoomLabel(name: String) {
     }
 }
 
-@Composable
-fun DeviceItemRow(device: Device, onClick: () -> Unit) {
-    val statusColor = getDeviceStatusColor(device)
-    val isIronOn = device.type == "iron" && device.state == "ON"
-    
-    Surface(
-        onClick = onClick,
-        color = if (isIronOn) Color(0xFF2D1B1B) else Color(0xFF1A1A1A),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(getDeviceIcon(device), null, tint = statusColor, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(16.dp))
-            Text(text = device.name, color = Color.White, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-            Text(text = if (device.type == "camera") "Streaming" else device.state, color = statusColor, fontSize = 14.sp)
-        }
-    }
-}
-
 fun getRoomIcon(room: String): ImageVector {
     val r = room.lowercase()
     return when {
@@ -276,8 +428,10 @@ fun getRoomIcon(room: String): ImageVector {
         "living" in r -> Icons.Outlined.Weekend
         "utility" in r -> Icons.Outlined.LocalLaundryService
         "porch" in r -> Icons.Outlined.DoorFront
+        "master bedroom" in r || "master bed" in r -> Icons.Outlined.Bed
         "bed" in r -> Icons.Outlined.SingleBed
         "bath" in r -> Icons.Outlined.Bathtub
+        "balcony" in r -> Icons.Outlined.Deck
         "garage" in r -> Icons.Outlined.DirectionsCar
         else -> Icons.Outlined.Home
     }

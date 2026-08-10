@@ -43,50 +43,46 @@
                 "kitchen living-room"
                 "utility porch";
         }
-        @media (min-width: 900px) {
-            .floor-container.ground-layout {
-                grid-template-columns: 350px 1fr 1fr;
-                grid-template-areas: 
-                    "garage kitchen living-room"
-                    "garage utility porch";
-            }
+        h1 {
+            color: #64b5f6;
         }
-        
-        /* First Floor Layout */
-        .floor-container.first-layout { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 20px; 
-            grid-template-areas: 
-                "bathroom bedroom-2"
-                "master-bedroom bedroom-2"
-                "balcony balcony";
+        .device-card {
+            background: #2c2c2c;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 6px solid #888;
+            transition: 0.3s;
         }
-        @media (min-width: 900px) {
-            .floor-container.first-layout {
-                grid-template-columns: 1fr 1fr;
-            }
+        .device-card.on {
+            border-left-color: #4caf50;
+            background: #24331f;
         }
-
-        /* Room Areas */
-        .room-garage { grid-area: garage; height: 100%; }
-        .room-kitchen { grid-area: kitchen; height: 100%; }
-        .room-living-room { grid-area: living-room; height: 100%; }
-        .room-porch { grid-area: porch; height: 100%; }
-        .room-utility { grid-area: utility; height: 100%; }
-        .room-balcony { grid-area: balcony; height: 100%; }
-        .room-master-bedroom { grid-area: master-bedroom; height: 100%; }
-        .room-bathroom { grid-area: bathroom; height: 100%; }
-        .room-bedroom-2 { grid-area: bedroom-2; height: 100%; }
-
-        .room-bg-container { position: relative; border-radius: 12px; overflow: hidden; margin-top: 15px; margin-bottom: 20px; background-size: cover; background-position: center; background-color: transparent; height: calc(100% - 60px); min-height: 250px; }
-        .room-bg-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 1; transition: background-color 0.6s ease; }
-        .device-grid { position: relative; z-index: 2; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 160px)); gap: 15px; justify-content: start; }
-
-        @keyframes blink {
-            0% { opacity: 1; }
-            50% { opacity: 0.3; }
-            100% { opacity: 1; }
+        .device-card.off {
+            border-left-color: #757575;
+        }
+        .device-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .device-state {
+            font-size: 14px;
+            margin-top: 4px;
+            color: #ccc;
+        }
+        .switch-row {
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: #3a3a3a;
+            border-radius: 6px;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        #status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 6px;
+            background: #333;
         }
         @keyframes spin {
             from { transform: rotate(0deg); }
@@ -103,6 +99,7 @@
     <div id="floors-container"></div>
 </div>
 
+<!-- Firebase SDK (CDN) -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
@@ -119,43 +116,16 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const container = document.getElementById("floors-container");
-    const statusBar = document.getElementById("status-bar");
 
-    onValue(ref(db, "floors"), (snapshot) => {
-        statusBar.innerHTML = "🟢 Connected - Monitoring " + (snapshot.exists() ? Object.keys(snapshot.val()).length : 0) + " floors";
-        container.innerHTML = "";
+    const statusDiv = document.getElementById("status");
+    const devicesDiv = document.getElementById("devices");
 
-        const data = snapshot.val();
-        if (!data) return;
+    // Listen to ALL floors and their devices
+    const floorsRef = ref(db, "floors");
 
-        Object.entries(data).forEach(([floorId, floor]) => {
-            const section = document.createElement("div");
-            section.className = "floor-section";
-            section.innerHTML = `<h2>Floor: ${floor.name || floorId}</h2>`;
-
-            const floorContainer = document.createElement("div");
-            let layoutClass = '';
-            if (floorId === 'ground' || floor.name === 'Ground floor') layoutClass = 'ground-layout';
-            if (floorId === 'first' || floor.name === 'First floor') layoutClass = 'first-layout';
-            floorContainer.className = `floor-container ${layoutClass}`;
-
-            if (floor.devices || floorId === 'ground' || floorId === 'first' || floor.name === 'Ground floor' || floor.name === 'First floor') {
-                const rooms = {};
-                
-                // Pre-populate known rooms so the grid layout is always filled
-                if (floorId === 'ground' || floor.name === 'Ground floor') {
-                    rooms['Garage'] = {};
-                    rooms['Kitchen'] = {};
-                    rooms['Living room'] = {};
-                    rooms['Utility'] = {};
-                    rooms['Porch'] = {};
-                } else if (floorId === 'first' || floor.name === 'First floor') {
-                    rooms['Bathroom'] = {};
-                    rooms['Master Bedroom'] = {};
-                    rooms['Bedroom 2'] = {};
-                    rooms['Balcony'] = {};
-                }
+    onValue(floorsRef, (snapshot) => {
+        statusDiv.textContent = "✅ Connected — Live data from Firebase";
+        devicesDiv.innerHTML = "";
 
                 if (floor.devices) {
                     Object.entries(floor.devices).forEach(([deviceId, device]) => {
@@ -299,7 +269,11 @@
                             }
                         }
 
-                        card.innerHTML = content;
+            Object.keys(devices).forEach((deviceId) => {
+                const device = devices[deviceId];
+                const card = document.createElement("div");
+                const isOn = device.state === "ON";
+                card.className = "device-card " + (isOn ? "on" : "off");
 
                         if (device.type === "multiswitch" && device.switches) {
                             const rows = card.querySelectorAll('.multi-switch-row');
@@ -317,6 +291,12 @@
                         
                         grid.appendChild(card);
                     });
+                } else if (device.type === "camera") {
+                    innerHTML += `<div class="device-state">📷 Streaming (mock): ${device.streamUrl || "N/A"}</div>`;
+                } else {
+                    innerHTML += `<div class="device-state">State: ${device.state || "OFF"}</div>`;
+                    if (device.type === "iron" && device.maxDurationSec) {
+                        innerHTML += `<div class="device-state">Max duration: ${device.maxDurationSec / 60} min</div>`;
                     }
                     bgContainer.appendChild(overlay);
                     
@@ -354,6 +334,8 @@
             section.appendChild(floorContainer);
             container.appendChild(section);
         });
+    }, (error) => {
+        statusDiv.textContent = "❌ Connection error: " + error.message;
     });
 </script>
 </body>

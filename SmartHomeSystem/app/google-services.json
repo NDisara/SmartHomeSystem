@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "870635457059",
+    "project_id": "smarthomesystem-70abf",
+    "storage_bucket": "smarthomesystem-70abf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:870635457059:android:16285103750aabb0577f96",
+        "android_client_info": {
+          "package_name": "com.example.smarthomesystem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDa37URzqmoUAyAOWsCy3Cr4eBR6RCfBRk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
