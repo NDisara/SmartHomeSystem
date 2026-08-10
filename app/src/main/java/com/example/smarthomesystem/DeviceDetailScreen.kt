@@ -86,7 +86,7 @@ fun LightControlCard(device: Device, onToggle: () -> Unit) {
                 }
                 Spacer(Modifier.height(16.dp))
                 ScheduleRow(label = "Turn ON at", time = device.scheduleOn ?: "Not set")
-                Divider(color = Color(0xFF333333), modifier = Modifier.padding(vertical = 12.dp))
+                HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(vertical = 12.dp))
                 ScheduleRow(label = "Turn OFF at", time = device.scheduleOff ?: "Not set")
             }
         }
