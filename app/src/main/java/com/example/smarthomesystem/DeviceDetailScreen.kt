@@ -79,8 +79,7 @@ fun DeviceDetailScreen(floorId: String, deviceId: String) {
                     floorId = floorId,
                     onToggle = {
                         val newState = if (dev.state == "ON") "OFF" else "ON"
-                        val timestamp = if (newState == "ON") System.currentTimeMillis() else 0L
-                        FirebaseRepository.updateDeviceState(floorId, dev.id, newState, timestamp)
+                        FirebaseRepository.updateDeviceState(floorId, dev.id, newState)
                         FirebaseRepository.logUsage(dev.id, dev.name, newState)
                     }
                 )

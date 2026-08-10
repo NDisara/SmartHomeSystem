@@ -354,19 +354,29 @@ fun DeviceRowItem(
 
     val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(isIronOn, device.turnedOnAt) {
         if (isIronOn && device.turnedOnAt > 0) {
+            currentTime = System.currentTimeMillis() // Update immediately on restart
             while (true) {
-                currentTime = System.currentTimeMillis()
                 delay(1000)
+                currentTime = System.currentTimeMillis()
             }
         }
     }
 
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
+        }
+    }
+
+    val adjustedCurrentTime = currentTime + serverTimeOffset
+
     val statusText = when {
         isIronOn && device.maxDurationSec > 0 && device.turnedOnAt > 0 -> {
-            val elapsedSec = (currentTime - device.turnedOnAt) / 1000
+            val elapsedSec = (maxOf(adjustedCurrentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
             val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
             val mins = remainingSec / 60
             val secs = remainingSec % 60

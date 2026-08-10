@@ -21,15 +21,17 @@ fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
 
     LaunchedEffect(device.state, device.turnedOnAt) {
         if (device.state == "ON" && device.turnedOnAt > 0) {
+            currentTime = System.currentTimeMillis() // Update immediately on restart
             while (true) {
-                currentTime = System.currentTimeMillis()
                 delay(1000)
+                currentTime = System.currentTimeMillis()
             }
         }
     }
 
     val remainingSec = if (device.state == "ON" && device.turnedOnAt > 0) {
-        val elapsed = (currentTime - device.turnedOnAt) / 1000
+        // Use maxOf to ensure we don't get negative elapsed time if currentTime is slightly behind the new turnedOnAt
+        val elapsed = (maxOf(currentTime, device.turnedOnAt) - device.turnedOnAt) / 1000
         (device.maxDurationSec - elapsed).coerceAtLeast(0)
     } else null
 

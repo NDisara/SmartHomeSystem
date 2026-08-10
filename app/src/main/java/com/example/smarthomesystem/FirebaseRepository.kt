@@ -4,6 +4,7 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ServerValue
 
 object FirebaseRepository {
     private const val DATABASE_URL = "https://smarthomesystem-70abf-default-rtdb.firebaseio.com"
@@ -45,11 +46,11 @@ object FirebaseRepository {
         return null
     }
 
-    fun updateDeviceState(floorId: String, deviceId: String, newState: String, turnedOnAt: Long = 0L) {
+    fun updateDeviceState(floorId: String, deviceId: String, newState: String) {
         val ref = database.getReference("floors/$floorId/devices/$deviceId")
         val updates = mutableMapOf<String, Any>("state" to newState)
         if (newState == "ON") {
-            updates["turnedOnAt"] = turnedOnAt
+            updates["turnedOnAt"] = ServerValue.TIMESTAMP
         } else {
             updates["turnedOnAt"] = 0L
         }
@@ -65,7 +66,7 @@ object FirebaseRepository {
         val ref = database.getReference("floors/$floorId/devices/$deviceId")
         val updates = mutableMapOf<String, Any>("maxDurationSec" to durationSec)
         if (resetTimer) {
-            updates["turnedOnAt"] = System.currentTimeMillis()
+            updates["turnedOnAt"] = ServerValue.TIMESTAMP
         }
         ref.updateChildren(updates)
     }
@@ -87,6 +88,15 @@ object FirebaseRepository {
                     child.getValue(UsageLog::class.java)?.let { logs.add(it) }
                 }
                 onDataChanged(logs)
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
+    fun listenToServerTimeOffset(onOffsetChanged: (Long) -> Unit) {
+        database.getReference(".info/serverTimeOffset").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                onOffsetChanged(snapshot.getValue(Long::class.java) ?: 0L)
             }
             override fun onCancelled(error: DatabaseError) {}
         })
