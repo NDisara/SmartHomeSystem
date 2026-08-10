@@ -2,107 +2,92 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Home Simulator</title>
+    <title>Smart Home Hardware Simulator</title>
     <style>
-        body { 
-            margin: 0; padding: 24px;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            background-color: #121212;
-            color: #FFFFFF;
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 40px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { color: #2196F3; font-weight: 300; }
+        .floor-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
+        .card { background: #1e1e1e; border-radius: 10px; padding: 12px; border: 1px solid #333; transition: 0.3s; }
+        .card.on { border-color: #4caf50; background: #1b261b; }
+        .card.error { border-color: #f44336; }
+        .card.clickable:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .sw-row.clickable:hover { background: #3a3a3a; }
+        .name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .type { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+        .status { font-size: 12px; padding: 3px 6px; border-radius: 4px; display: inline-block; }
+        .status.on { background: #4caf50; color: white; }
+        .status.off { background: #424242; color: #aaa; }
+        .switch-unit { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+        .sw-row { display: flex; justify-content: space-between; background: #2a2a2a; padding: 6px; border-radius: 6px; font-size: 11px; }
+        #status-bar { background: #1a1a1a; padding: 10px 20px; border-radius: 8px; margin-bottom: 30px; font-size: 14px; }
+        .camera-box { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; margin-top: 8px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; }
+        
+        .floor-container { display: flex; flex-direction: column; gap: 20px; }
+        
+        /* Ground Layout */
+        .floor-container.ground-layout { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            grid-template-areas: 
+                "garage garage"
+                "kitchen living-room"
+                "utility porch";
+        }
+        @media (min-width: 900px) {
+            .floor-container.ground-layout {
+                grid-template-columns: 350px 1fr 1fr;
+                grid-template-areas: 
+                    "garage kitchen living-room"
+                    "garage utility porch";
+            }
         }
         
-        .container { 
-            max-width: 600px; margin: 0 auto;
+        /* First Floor Layout */
+        .floor-container.first-layout { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            grid-template-areas: 
+                "bathroom bedroom-2"
+                "master-bedroom bedroom-2"
+                "balcony balcony";
+        }
+        @media (min-width: 900px) {
+            .floor-container.first-layout {
+                grid-template-columns: 1fr 1fr;
+            }
         }
 
-        #status-bar { 
-            color: #9E9E9E;
-            font-size: 14px;
-            margin-bottom: 24px;
-        }
+        /* Room Areas */
+        .room-garage { grid-area: garage; height: 100%; }
+        .room-kitchen { grid-area: kitchen; height: 100%; }
+        .room-living-room { grid-area: living-room; height: 100%; }
+        .room-porch { grid-area: porch; height: 100%; }
+        .room-utility { grid-area: utility; height: 100%; }
+        .room-balcony { grid-area: balcony; height: 100%; }
+        .room-master-bedroom { grid-area: master-bedroom; height: 100%; }
+        .room-bathroom { grid-area: bathroom; height: 100%; }
+        .room-bedroom-2 { grid-area: bedroom-2; height: 100%; }
 
-        .floor-name {
-            font-size: 28px;
-            font-weight: bold;
-            color: #FFFFFF;
-            margin-bottom: 8px;
-            margin-top: 32px;
-        }
+        .room-bg-container { position: relative; border-radius: 12px; overflow: hidden; margin-top: 15px; margin-bottom: 20px; background-size: cover; background-position: center; background-color: transparent; height: calc(100% - 60px); min-height: 250px; }
+        .room-bg-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 1; transition: background-color 0.6s ease; }
+        .device-grid { position: relative; z-index: 2; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 160px)); gap: 15px; justify-content: start; }
 
-        /* Abstract Grid Simulation from app */
-        .grid-overlay {
-            background-color: #1E1E1E;
-            border-radius: 24px;
-            height: 120px;
-            margin-bottom: 32px;
-            position: relative;
-            padding: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-around;
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
         }
-        
-        .grid-node {
-            width: 48px; height: 48px;
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .grid-node-inner {
-            width: 12px; height: 12px;
-            border-radius: 2px;
-        }
-
-        .device-row {
-            display: flex; flex-direction: column;
-            padding: 12px 0 0 0;
-        }
-
-        .device-row-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .device-info { display: flex; flex-direction: column; }
-        .device-name { font-size: 16px; color: #FFFFFF; }
-        .device-extras { font-size: 12px; color: #9E9E9E; margin-top: 4px; }
-
-        .device-status-container { display: flex; align-items: center; gap: 12px; }
-        .status-text { font-size: 14px; text-transform: lowercase; }
-        
-        .status-green { color: #4CAF50; }
-        .status-red { color: #F44336; }
-        .status-blue { color: #2196F3; }
-        .status-gray { color: #9E9E9E; }
-
-        .divider {
-            height: 1px;
-            background-color: #333333;
-            margin-top: 12px;
-            width: 100%;
-        }
-
-        /* Sub-switch for multiswitch */
-        .sub-switch {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 8px 0; margin-left: 16px;
-        }
-        .sub-switch-name { font-size: 14px; color: #CCCCCC; }
-
-        /* Material-style Toggle Switch */
-        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #9E9E9E; transition: .3s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; }
-        input:checked + .slider { background-color: #4caf50; }
-        input:checked + .slider:before { transform: translateX(16px); }
-        input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
+
 <body>
 
 <div class="container">
-    <div id="status-bar">Connecting...</div>
+    <h1>🏠 IoT Hardware Simulator</h1>
+    <div id="status-bar">Initializing connection...</div>
     <div id="floors-container"></div>
 </div>
 
@@ -125,23 +110,8 @@
     const container = document.getElementById("floors-container");
     const statusBar = document.getElementById("status-bar");
 
-    container.addEventListener("change", (e) => {
-        if (e.target.tagName === "INPUT" && e.target.type === "checkbox") {
-            const floorId = e.target.dataset.floor;
-            const deviceId = e.target.dataset.device;
-            const swId = e.target.dataset.switch;
-            const newState = e.target.checked ? "ON" : "OFF";
-            
-            if (swId) {
-                set(ref(db, `floors/${floorId}/devices/${deviceId}/switches/${swId}`), newState);
-            } else {
-                set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
-            }
-        }
-    });
-
     onValue(ref(db, "floors"), (snapshot) => {
-        statusBar.innerHTML = "grid overlay - " + (snapshot.exists() ? Object.keys(snapshot.val()).length : 0) + " floors monitored";
+        statusBar.innerHTML = "🟢 Connected - Monitoring " + (snapshot.exists() ? Object.keys(snapshot.val()).length : 0) + " floors";
         container.innerHTML = "";
 
         const data = snapshot.val();
@@ -149,103 +119,146 @@
 
         Object.entries(data).forEach(([floorId, floor]) => {
             const section = document.createElement("div");
-            
-            let floorHtml = `<div class="floor-name">${floor.name || floorId}</div>`;
-            
-            if (floor.devices) {
-                // Add abstract grid overlay representation from FloorDetailScreen
-                floorHtml += `<div class="grid-overlay">`;
-                Object.values(floor.devices).slice(0,4).forEach(device => {
-                    const isOn = device.state === "ON";
-                    const isErr = device.state === "ERROR";
-                    const isCam = device.type === "camera";
-                    let rgb = "158,158,158"; // secondary
-                    if (isOn) rgb = "76,175,80";
-                    if (isErr) rgb = "244,67,54";
-                    
-                    floorHtml += `
-                    <div class="grid-node" style="background-color: rgba(${rgb}, 0.2)">
-                        <div class="grid-node-inner" style="background-color: rgb(${rgb})"></div>
-                    </div>`;
-                });
-                floorHtml += `</div>`;
+            section.className = "floor-section";
+            section.innerHTML = `<h2>Floor: ${floor.name || floorId}</h2>`;
+
+            const floorContainer = document.createElement("div");
+            let layoutClass = '';
+            if (floorId === 'ground' || floor.name === 'Ground floor') layoutClass = 'ground-layout';
+            if (floorId === 'first' || floor.name === 'First floor') layoutClass = 'first-layout';
+            floorContainer.className = `floor-container ${layoutClass}`;
+
+            if (floor.devices || floorId === 'ground' || floorId === 'first' || floor.name === 'Ground floor' || floor.name === 'First floor') {
+                const rooms = {};
                 
-                // Add device rows
-                Object.entries(floor.devices).forEach(([deviceId, device]) => {
-                    const isOn = device.state === "ON";
-                    let statusText = device.state ? device.state.toLowerCase() : "off";
-                    let statusClass = "status-gray";
-                    
-                    if (device.type === "camera") {
-                        statusText = "streaming";
-                        statusClass = "status-blue";
-                    } else if (statusText === "on") {
-                        statusClass = "status-green";
-                    } else if (statusText === "error") {
-                        statusClass = "status-red";
-                    }
+                // Pre-populate known rooms so the grid layout is always filled
+                if (floorId === 'ground' || floor.name === 'Ground floor') {
+                    rooms['Garage'] = {};
+                    rooms['Kitchen'] = {};
+                    rooms['Living room'] = {};
+                    rooms['Utility'] = {};
+                    rooms['Porch'] = {};
+                } else if (floorId === 'first' || floor.name === 'First floor') {
+                    rooms['Bathroom'] = {};
+                    rooms['Master Bedroom'] = {};
+                    rooms['Bedroom 2'] = {};
+                    rooms['Balcony'] = {};
+                }
 
-                    let rowHtml = `<div class="device-row">`;
-                    rowHtml += `<div class="device-row-content">`;
-                    
-                    // Left side (Name & Extras)
-                    rowHtml += `<div class="device-info">`;
-                    rowHtml += `<div class="device-name">${device.name}</div>`;
-                    
-                    let extras = "";
-                    if (device.type === "iron" && isOn) extras += "Safety cutoff active";
-                    if (device.type === "light" && device.scheduleOn) extras += `Schedule: ${device.scheduleOn}-${device.scheduleOff}`;
-                    if (extras) rowHtml += `<div class="device-extras">${extras}</div>`;
-                    rowHtml += `</div>`; // end device-info
+                if (floor.devices) {
+                    Object.entries(floor.devices).forEach(([deviceId, device]) => {
+                        const roomName = device.room || 'Unassigned';
+                        if (!rooms[roomName]) rooms[roomName] = {};
+                        rooms[roomName][deviceId] = device;
+                    });
+                }
 
-                    // Right side (Status Text & Toggle)
-                    rowHtml += `<div class="device-status-container">`;
+                Object.entries(rooms).forEach(([roomName, devices]) => {
+                    const roomSection = document.createElement("div");
+                    const normalizedRoomName = roomName.toLowerCase().replace(/\s+/g, '-');
+                    roomSection.className = `room-section room-${normalizedRoomName}`;
                     
-                    if (device.type === "multiswitch" && device.switches) {
-                        rowHtml += `<span class="status-text ${statusClass}">multiswitch</span>`;
-                    } else if (device.type === "camera") {
-                        rowHtml += `<span class="status-text ${statusClass}">${statusText}</span>`;
+                    const imageName = roomName.toLowerCase().replace(/\s+/g, '_') + '.png';
+
+                    roomSection.innerHTML = `<h3 style="color:#aaa; margin-top:20px; font-weight:400;">Room: ${roomName}</h3>`;
+                    
+                    const bgContainer = document.createElement("div");
+                    bgContainer.className = "room-bg-container";
+                    bgContainer.style.backgroundImage = `url('assets/${imageName}')`;
+                    
+                    const overlay = document.createElement("div");
+                    overlay.className = "room-bg-overlay";
+                    
+                    let hasLights = false;
+                    let isRoomLit = false;
+                    Object.values(devices).forEach(device => {
+                        if (device.type === "light" || device.type === "multiswitch") {
+                            hasLights = true;
+                            if (device.type === "multiswitch" && device.switches) {
+                                if (Object.values(device.switches).includes("ON")) isRoomLit = true;
+                            } else if (device.type === "light" && device.state === "ON") {
+                                isRoomLit = true;
+                            }
+                        }
+                    });
+                    
+                    if (hasLights && !isRoomLit) {
+                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.85)";
                     } else {
-                        rowHtml += `<span class="status-text ${statusClass}">${statusText}</span>`;
-                        rowHtml += `
-                            <label class="switch">
-                                <input type="checkbox" data-floor="${floorId}" data-device="${deviceId}" ${isOn ? 'checked' : ''}>
-                                <span class="slider"></span>
-                            </label>
-                        `;
+                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.4)";
                     }
-                    rowHtml += `</div>`; // end right side
-                    rowHtml += `</div>`; // end row-content
-
-                    // Sub-switches for multiswitch
-                    if (device.type === "multiswitch" && device.switches) {
-                        Object.entries(device.switches).forEach(([swId, swState]) => {
-                            const isSwOn = swState === "ON";
-                            rowHtml += `
-                            <div class="sub-switch">
-                                <span class="sub-switch-name">${swId.split('_')[1] || swId}</span>
-                                <div class="device-status-container">
-                                    <span class="status-text ${isSwOn ? 'status-green' : 'status-gray'}">${swState.toLowerCase()}</span>
-                                    <label class="switch">
-                                        <input type="checkbox" data-floor="${floorId}" data-device="${deviceId}" data-switch="${swId}" ${isSwOn ? 'checked' : ''}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            `;
-                        });
-                    }
-
-                    rowHtml += `<div class="divider"></div>`;
-                    rowHtml += `</div>`; // end device-row
                     
-                    floorHtml += rowHtml;
+                    const grid = document.createElement("div");
+                    grid.className = "device-grid";
+                    
+                    if (Object.keys(devices).length === 0) {
+                        grid.innerHTML = "<div style='color:#bbb; padding: 10px; font-size: 14px;'>No devices in this room.</div>";
+                    } else {
+                        Object.entries(devices).forEach(([deviceId, device]) => {
+                            const card = document.createElement("div");
+                        const isOn = device.state === "ON";
+                        card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
+
+                        let content = `<div class="name">${device.name}</div><div class="type">${device.type}</div>`;
+
+                        if (device.type === "multiswitch" && device.switches) {
+                            content += `<div class="switch-unit">`;
+                            Object.entries(device.switches).forEach(([swId, swState]) => {
+                                content += `<div class="sw-row multi-switch-row" data-swid="${swId}" data-swstate="${swState}"><span>${swId.split('_')[1] || swId}</span> <b>${swState}</b></div>`;
+                            });
+                            content += `</div>`;
+                        } else if (device.type === "camera") {
+                            const camImageName = (device.room || roomName).toLowerCase().replace(/\s+/g, '_') + '.png';
+                            content += `<div class="camera-box" style="background-image: url('assets/${camImageName}'); background-size: cover; background-position: center; border: 1px solid #333; color: white; text-shadow: 1px 1px 3px black; font-weight: bold;">
+                                <div><span style="color: #ff4444; font-size: 14px; margin-right: 4px; animation: blink 1.5s infinite;">●</span> LIVE</div>
+                            </div>`;
+                        } else {
+                            card.classList.add("clickable");
+                            card.style.cursor = "pointer";
+                            card.addEventListener("click", () => {
+                                const newState = isOn ? "OFF" : "ON";
+                                set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
+                            });
+                            content += `<span class="status ${isOn ? 'on' : 'off'}">${device.state}</span>`;
+                            if (device.type === "iron" && isOn) {
+                                content += `<div style="font-size:11px; margin-top:10px; color:#ff9800;">Safety cutoff active</div>`;
+                            }
+                            if (device.type === "light" && device.scheduleOn) {
+                                content += `<div style="font-size:11px; margin-top:10px; color:#2196f3;">Schedule: ${device.scheduleOn} - ${device.scheduleOff}</div>`;
+                            }
+                        }
+
+                        card.innerHTML = content;
+
+                        if (device.type === "multiswitch" && device.switches) {
+                            const rows = card.querySelectorAll('.multi-switch-row');
+                            rows.forEach(row => {
+                                row.classList.add("clickable");
+                                row.style.cursor = "pointer";
+                                row.addEventListener('click', () => {
+                                    const swId = row.getAttribute('data-swid');
+                                    const swState = row.getAttribute('data-swstate');
+                                    const newState = swState === "ON" ? "OFF" : "ON";
+                                    set(ref(db, `floors/${floorId}/devices/${deviceId}/switches/${swId}`), newState);
+                                });
+                            });
+                        }
+
+                        grid.appendChild(card);
+                    });
+                    }
+                    bgContainer.appendChild(overlay);
+                    bgContainer.appendChild(grid);
+                    roomSection.appendChild(bgContainer);
+                    floorContainer.appendChild(roomSection);
                 });
             } else {
-                floorHtml += `<div class="device-row"><div class="device-name" style="color:#9E9E9E">No devices</div></div>`;
+                const grid = document.createElement("div");
+                grid.className = "device-grid";
+                grid.innerHTML = "<p style='color:#666'>No devices found.</p>";
+                floorContainer.appendChild(grid);
             }
-
-            section.innerHTML = floorHtml;
+            section.appendChild(floorContainer);
             container.appendChild(section);
         });
     });
