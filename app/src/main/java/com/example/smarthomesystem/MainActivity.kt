@@ -162,11 +162,55 @@ fun FloorListScreen(
     onFloorClick: (String) -> Unit
 ) {
     var floors by remember { mutableStateOf<List<Floor>>(emptyList()) }
+    var showAddFloorDialog by remember { mutableStateOf(false) }
+    var newFloorName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         FirebaseRepository.listenToFloors { updatedFloors ->
             floors = updatedFloors
         }
+    }
+
+    if (showAddFloorDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddFloorDialog = false },
+            title = { Text("Add Floor Plan", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = newFloorName,
+                    onValueChange = { newFloorName = it },
+                    label = { Text("Floor Name", color = Color.Gray) },
+                    placeholder = { Text("e.g. Garage", color = Color.DarkGray) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF2196F3),
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newFloorName.isNotBlank()) {
+                            FirebaseRepository.addFloor(newFloorName)
+                            newFloorName = ""
+                            showAddFloorDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Text("Add", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddFloorDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E)
+        )
     }
 
     Column(
@@ -209,7 +253,7 @@ fun FloorListScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
-            onClick = { /* Add floor plan logic */ },
+            onClick = { showAddFloorDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
@@ -235,20 +279,10 @@ fun FloorItem(floor: Floor, onClick: () -> Unit) {
     }
 
     val roomCount = remember(devices) {
-        if (devices.isEmpty()) {
-            if (floor.id == "ground") 5 else 4
-        } else {
-            devices.map { getRoomName(it) }.distinct().size
-        }
+        devices.map { it.room }.filter { it.isNotBlank() }.distinct().size
     }
     
-    val deviceCount = remember(devices) {
-        if (devices.isEmpty()) {
-            if (floor.id == "ground") 8 else 4
-        } else {
-            devices.size
-        }
-    }
+    val deviceCount = remember(devices) { devices.size }
 
     Surface(
         onClick = onClick,

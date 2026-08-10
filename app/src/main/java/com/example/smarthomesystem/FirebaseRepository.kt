@@ -12,17 +12,29 @@ object FirebaseRepository {
     fun listenToFloors(onDataChanged: (List<Floor>) -> Unit) {
         database.getReference("floors").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                // Ensure strictly Ground floor and First floor are returned
-                val validFloors = listOf(
-                    Floor(id = "ground", name = "Ground floor"),
-                    Floor(id = "first", name = "First floor")
-                )
-                onDataChanged(validFloors)
+                val floors = mutableListOf<Floor>()
+                for (child in snapshot.children) {
+                    val id = child.key ?: continue
+                    val name = child.child("name").getValue(String::class.java) ?: id
+                    floors.add(Floor(id = id, name = name))
+                }
+                onDataChanged(floors)
             }
             override fun onCancelled(error: DatabaseError) {
                 println("Firebase Error: ${error.message}")
             }
         })
+    }
+
+    fun addFloor(name: String) {
+        val id = name.lowercase().replace(" ", "_")
+        database.getReference("floors/$id/name").setValue(name)
+    }
+
+    fun addDevice(floorId: String, name: String, type: String, room: String) {
+        val deviceId = name.lowercase().replace(" ", "_") + "_" + System.currentTimeMillis() % 1000
+        val device = Device(name = name, type = type, room = room)
+        database.getReference("floors/$floorId/devices/$deviceId").setValue(device)
     }
 
     fun listenToDevices(floorId: String, onDataChanged: (List<Device>) -> Unit) {
