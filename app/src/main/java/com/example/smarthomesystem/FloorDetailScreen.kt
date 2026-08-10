@@ -47,6 +47,55 @@ fun FloorDetailScreen(
         }
     }
 
+    // --- Safety Cutoff Timer Simulation ---
+    LaunchedEffect(devices) {
+        while (true) {
+            devices.forEach { device ->
+                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
+                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+                    if (elapsed >= device.maxDurationSec) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
+                    }
+                }
+            }
+            delay(2000) // Check every 2 seconds for safety
+        }
+    }
+
+    // --- Auto-scheduled devices check (Improved for precise time) ---
+    LaunchedEffect(devices) {
+        while (true) {
+            val calendar = Calendar.getInstance()
+            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+
+            devices.forEach { device ->
+                val startParts = device.scheduleOn?.split(":")
+                val endParts = device.scheduleOff?.split(":")
+
+                if (startParts?.size == 2 && endParts?.size == 2) {
+                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
+                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
+
+                    if (startMinutes != null && endMinutes != null) {
+                        val shouldBeOn = if (startMinutes <= endMinutes) {
+                            currentTotalMinutes in startMinutes until endMinutes
+                        } else {
+                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
+                        }
+
+                        val targetState = if (shouldBeOn) "ON" else "OFF"
+                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
+                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
+                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
+                        }
+                    }
+                }
+            }
+            delay(30000) // Check every 30 seconds
+        }
+    }
+
     val activeRooms = devices.map { it.room }.filter { it.isNotBlank() }.distinct().sorted()
 
     if (showAddDeviceDialog) {
@@ -113,48 +162,6 @@ fun FloorDetailScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
 
-    // --- Safety Cutoff Timer Simulation ---
-    LaunchedEffect(devices) {
-        while (true) {
-            devices.forEach { device ->
-                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
-                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
-                    if (elapsed >= device.maxDurationSec) {
-                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
-                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
-                    }
-                }
-            }
-            delay(2000) // Check every 2 seconds for safety
-        }
-    }
-
-    // --- Auto-scheduled devices check (Improved for precise time) ---
-    LaunchedEffect(devices) {
-        while (true) {
-            val calendar = Calendar.getInstance()
-            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
-
-            devices.forEach { device ->
-                val startParts = device.scheduleOn?.split(":")
-                val endParts = device.scheduleOff?.split(":")
-
-                if (startParts?.size == 2 && endParts?.size == 2) {
-                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
-                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
-
-                    if (startMinutes != null && endMinutes != null) {
-                        val shouldBeOn = if (startMinutes <= endMinutes) {
-                            currentTotalMinutes in startMinutes until endMinutes
-                        } else {
-                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
-                        }
-
-                        val targetState = if (shouldBeOn) "ON" else "OFF"
-                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
-                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
-                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
-                        }
                 // Device List Sections (Grouped by Actual Rooms)
                 activeRooms.forEach { roomName ->
                     val roomDevices = devices.filter { it.room == roomName }
@@ -165,8 +172,6 @@ fun FloorDetailScreen(
                     Spacer(Modifier.height(24.dp))
                 }
             }
-            delay(30000) // Check every 30 seconds
-            
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -273,23 +278,39 @@ fun FloorPlanGrid(devices: List<Device>, onDeviceClick: (String) -> Unit) {
 }
 
 @Composable
-fun DeviceRowItem(
-    device: Device,
-    onClick: () -> Unit
-) {
-    val statusColor = getDeviceStatusColor(device)
-    val deviceIcon = getDeviceIcon(device)
+fun DeviceMapIcon(device: Device, modifier: Modifier) {
+    val color = getDeviceStatusColor(device)
+    Box(
+        modifier = modifier.size(32.dp).background(Color(0xFF1A1A1A), CircleShape).border(1.dp, color.copy(0.4f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(getDeviceIcon(device), null, tint = color, modifier = Modifier.size(16.dp))
+    }
+}
 
+@Composable
+fun RoomLabel(name: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+        Icon(getRoomIcon(name), null, tint = Color(0xFF666666), modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text = name, color = Color(0xFF666666), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun DeviceItemRow(device: Device, onClick: () -> Unit) {
+    val statusColor = getDeviceStatusColor(device)
     val isIronOn = device.type.lowercase() == "iron" && device.state.uppercase() == "ON"
+    
+    // Timer logic for iron
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var serverTimeOffset by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(isIronOn, device.turnedOnAt) {
         if (isIronOn && device.turnedOnAt > 0) {
-            currentTime = System.currentTimeMillis() // Update immediately on restart
             while (true) {
-                delay(1000)
                 currentTime = System.currentTimeMillis()
+                delay(1000)
             }
         }
     }
@@ -323,30 +344,8 @@ fun DeviceRowItem(
                 baseStatus
             }
         }
-fun DeviceMapIcon(device: Device, modifier: Modifier) {
-    val color = getDeviceStatusColor(device)
-    Box(
-        modifier = modifier.size(32.dp).background(Color(0xFF1A1A1A), CircleShape).border(1.dp, color.copy(0.4f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(getDeviceIcon(device), null, tint = color, modifier = Modifier.size(16.dp))
     }
-}
 
-@Composable
-fun RoomLabel(name: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-        Icon(getRoomIcon(name), null, tint = Color(0xFF666666), modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(text = name, color = Color(0xFF666666), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-fun DeviceItemRow(device: Device, onClick: () -> Unit) {
-    val statusColor = getDeviceStatusColor(device)
-    val isIronOn = device.type == "iron" && device.state == "ON"
-    
     Surface(
         onClick = onClick,
         color = if (isIronOn) Color(0xFF2D1B1B) else Color(0xFF1A1A1A),
@@ -357,7 +356,7 @@ fun DeviceItemRow(device: Device, onClick: () -> Unit) {
             Icon(getDeviceIcon(device), null, tint = statusColor, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(16.dp))
             Text(text = device.name, color = Color.White, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-            Text(text = if (device.type == "camera") "Streaming" else device.state, color = statusColor, fontSize = 14.sp)
+            Text(text = statusText, color = statusColor, fontSize = 14.sp)
         }
     }
 }
