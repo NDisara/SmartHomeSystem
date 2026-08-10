@@ -16,7 +16,7 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
-fun IronCard(device: Device, onToggle: () -> Unit) {
+fun IronCard(device: Device, floorId: String, onToggle: () -> Unit) {
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(device.state, device.turnedOnAt) {
@@ -67,10 +67,15 @@ fun IronCard(device: Device, onToggle: () -> Unit) {
 
         Text(text = "max active duration", color = Color.White, style = MaterialTheme.typography.bodySmall)
         
-        var sliderPosition by remember { mutableStateOf(device.maxDurationSec / 60f) }
+        var sliderPosition by remember(device.maxDurationSec) { mutableFloatStateOf(device.maxDurationSec / 60f) }
         Slider(
             value = sliderPosition,
             onValueChange = { sliderPosition = it },
+            onValueChangeFinished = {
+                val newDurationSec = (sliderPosition * 60).toInt()
+                // Reset the timer if the device is currently ON so it starts fresh from the new duration
+                FirebaseRepository.updateMaxDuration(floorId, device.id, newDurationSec, device.state == "ON")
+            },
             valueRange = 0f..60f,
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,

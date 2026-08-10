@@ -61,6 +61,15 @@ object FirebaseRepository {
         database.getReference("floors/$floorId/devices/$deviceId/$field").setValue(time)
     }
 
+    fun updateMaxDuration(floorId: String, deviceId: String, durationSec: Int, resetTimer: Boolean = false) {
+        val ref = database.getReference("floors/$floorId/devices/$deviceId")
+        val updates = mutableMapOf<String, Any>("maxDurationSec" to durationSec)
+        if (resetTimer) {
+            updates["turnedOnAt"] = System.currentTimeMillis()
+        }
+        ref.updateChildren(updates)
+    }
+
     fun updateSwitchState(floorId: String, deviceId: String, switchId: String, newState: String) {
         database.getReference("floors/$floorId/devices/$deviceId/switches/$switchId").setValue(newState)
     }

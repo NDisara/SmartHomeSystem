@@ -133,14 +133,17 @@ fun FloorDetailScreen(
 
     // --- Safety Cutoff Timer Simulation ---
     LaunchedEffect(devices) {
-        devices.forEach { device ->
-            if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
-                val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
-                if (elapsed >= device.maxDurationSec) {
-                    FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
-                    FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
+        while (true) {
+            devices.forEach { device ->
+                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
+                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
+                    if (elapsed >= device.maxDurationSec) {
+                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
+                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
+                    }
                 }
             }
+            delay(2000) // Check every 2 seconds for safety
         }
     }
 
