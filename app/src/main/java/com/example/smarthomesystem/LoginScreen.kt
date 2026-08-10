@@ -3,6 +3,7 @@ package com.example.smarthomesystem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +25,12 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
+
+    fun validateEmail(text: String): Boolean {
+        val emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[a-z]+$"
+        return text.matches(emailPattern.toRegex())
+    }
 
     Column(
         modifier = Modifier
@@ -49,17 +57,28 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { 
+                email = it
+                if (emailError != null) emailError = null
+            },
             label = { Text("Email Address") },
             placeholder = { Text("example@gmail.com") },
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+            isError = emailError != null,
+            supportingText = {
+                if (emailError != null) {
+                    Text(text = emailError!!, color = MaterialTheme.colorScheme.error)
+                }
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
                 focusedBorderColor = Color.White,
-                unfocusedBorderColor = SecondaryText
+                unfocusedBorderColor = SecondaryText,
+                errorBorderColor = MaterialTheme.colorScheme.error
             )
         )
 
@@ -84,7 +103,13 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { onLoginSuccess() },
+            onClick = { 
+                if (validateEmail(email)) {
+                    onLoginSuccess()
+                } else {
+                    emailError = "Please enter a valid email address"
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
