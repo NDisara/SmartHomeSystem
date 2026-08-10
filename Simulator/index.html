@@ -3,10 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>Smart Home Hardware Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 40px; }
+        body { font-family: 'Outfit', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #f0f0f0; padding: 40px; }
         .container { max-width: 1000px; margin: 0 auto; }
-        h1 { color: #2196F3; font-weight: 300; }
+        h1 { font-weight: 300; font-size: 2.8rem; margin-bottom: 30px; letter-spacing: -0.5px; display: flex; align-items: center; gap: 12px; }
+        .gradient-text {
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 4px 20px rgba(79, 172, 254, 0.3);
+            font-weight: 600;
+        }
         .floor-section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
         .card { background: #1e1e1e; border-radius: 10px; padding: 12px; border: 1px solid #333; transition: 0.3s; }
         .card.on { border-color: #4caf50; background: #1b261b; }
@@ -80,13 +88,17 @@
             50% { opacity: 0.3; }
             100% { opacity: 1; }
         }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 
 <body>
 
 <div class="container">
-    <h1>🏠 IoT Hardware Simulator</h1>
+    <h1>🏠 <span class="gradient-text">IoT Hardware Simulator</span></h1>
     <div id="status-bar">Initializing connection...</div>
     <div id="floors-container"></div>
 </div>
@@ -162,30 +174,67 @@
 
                     roomSection.innerHTML = `<h3 style="color:#aaa; margin-top:20px; font-weight:400;">Room: ${roomName}</h3>`;
                     
+                    let isGarageDoorOpen = false;
+                    Object.values(devices).forEach(device => {
+                        if (device.name && device.name.toLowerCase().includes('garage door') && device.state === 'ON') {
+                            isGarageDoorOpen = true;
+                        }
+                    });
+                    
                     const bgContainer = document.createElement("div");
                     bgContainer.className = "room-bg-container";
-                    bgContainer.style.backgroundImage = `url('assets/${imageName}')`;
+                    let finalImageName = imageName;
+                    if (roomName === 'Garage' && isGarageDoorOpen) {
+                        finalImageName = 'garage_open.png';
+                    }
+                    bgContainer.style.backgroundImage = `url('assets/${finalImageName}')`;
                     
                     const overlay = document.createElement("div");
                     overlay.className = "room-bg-overlay";
                     
                     let hasLights = false;
-                    let isRoomLit = false;
+                    let totalLightWeight = 0;
+                    let onLightWeight = 0;
+                    let hasFan = false;
+                    let isFanOn = false;
+                    let fanIsExhaust = false;
+                    
                     Object.values(devices).forEach(device => {
-                        if (device.type === "light" || device.type === "multiswitch") {
-                            hasLights = true;
-                            if (device.type === "multiswitch" && device.switches) {
-                                if (Object.values(device.switches).includes("ON")) isRoomLit = true;
-                            } else if (device.type === "light" && device.state === "ON") {
-                                isRoomLit = true;
-                            }
+                        if (device.type === "light") {
+                            totalLightWeight += 2; // Main light
+                            if (device.state === "ON") onLightWeight += 2;
+                        } else if (device.type === "multiswitch" && device.switches) {
+                            Object.entries(device.switches).forEach(([swId, swState]) => {
+                                const lowerSw = swId.toLowerCase();
+                                if (lowerSw.includes('lamp') || lowerSw.includes('light')) {
+                                    totalLightWeight += 1; // Secondary light
+                                    if (swState === 'ON') onLightWeight += 1;
+                                }
+                                if (lowerSw.includes('fan')) {
+                                    hasFan = true;
+                                    if (lowerSw.includes('exhaust')) fanIsExhaust = true;
+                                    if (swState === 'ON') isFanOn = true;
+                                }
+                            });
+                        }
+                        
+                        if (device.name && device.name.toLowerCase().includes('fan')) {
+                            hasFan = true;
+                            if (device.name.toLowerCase().includes('exhaust')) fanIsExhaust = true;
+                            if (device.state === "ON") isFanOn = true;
                         }
                     });
                     
-                    if (hasLights && !isRoomLit) {
-                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.85)";
+                    if (totalLightWeight > 0) {
+                        if (onLightWeight === 0) {
+                            overlay.style.backgroundColor = "rgba(0, 0, 0, 0.85)"; // Dark
+                        } else if (onLightWeight === 1) {
+                            overlay.style.backgroundColor = "rgba(0, 0, 0, 0.6)"; // Dim
+                        } else {
+                            overlay.style.backgroundColor = "rgba(0, 0, 0, 0.2)"; // Bright
+                        }
                     } else {
-                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.4)";
+                        overlay.style.backgroundColor = "rgba(0, 0, 0, 0.4)"; // No lights in room
                     }
                     
                     const grid = document.createElement("div");
@@ -196,29 +245,51 @@
                     } else {
                         Object.entries(devices).forEach(([deviceId, device]) => {
                             const card = document.createElement("div");
-                        const isOn = device.state === "ON";
-                        card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
+                            const isOn = device.state === "ON";
+                            card.className = `card ${isOn ? 'on' : ''} ${device.state === 'ERROR' ? 'error' : ''}`;
 
-                        let content = `<div class="name">${device.name}</div><div class="type">${device.type}</div>`;
+                            let content = `<div class="name" style="display:flex; align-items:center; gap: 6px;">${device.name}`;
+                            if (device.name && device.name.toLowerCase().includes('fan')) {
+                                const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform-origin: center;"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><circle cx="12" cy="12" r="2"/></svg>`;
+                                if (isOn) {
+                                    content += `<span style="display:inline-flex; align-items:center; color:#2196F3; animation: spin 0.8s linear infinite;">${svgIcon}</span>`;
+                                } else {
+                                    content += `<span style="display:inline-flex; align-items:center; opacity: 0.4;">${svgIcon}</span>`;
+                                }
+                            }
+                            content += `</div><div class="type">${device.type}</div>`;
 
-                        if (device.type === "multiswitch" && device.switches) {
-                            content += `<div class="switch-unit">`;
-                            Object.entries(device.switches).forEach(([swId, swState]) => {
-                                content += `<div class="sw-row multi-switch-row" data-swid="${swId}" data-swstate="${swState}"><span>${swId.split('_')[1] || swId}</span> <b>${swState}</b></div>`;
-                            });
-                            content += `</div>`;
-                        } else if (device.type === "camera") {
-                            const camImageName = (device.room || roomName).toLowerCase().replace(/\s+/g, '_') + '.png';
-                            content += `<div class="camera-box" style="background-image: url('assets/${camImageName}'); background-size: cover; background-position: center; border: 1px solid #333; color: white; text-shadow: 1px 1px 3px black; font-weight: bold;">
-                                <div><span style="color: #ff4444; font-size: 14px; margin-right: 4px; animation: blink 1.5s infinite;">●</span> LIVE</div>
-                            </div>`;
-                        } else {
-                            card.classList.add("clickable");
-                            card.style.cursor = "pointer";
-                            card.addEventListener("click", () => {
-                                const newState = isOn ? "OFF" : "ON";
-                                set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
-                            });
+                            if (device.type === "multiswitch" && device.switches) {
+                                content += `<div class="switch-unit">`;
+                                Object.entries(device.switches).forEach(([swId, swState]) => {
+                                    const label = swId.split('_')[1] || swId;
+                                    let iconHtml = '';
+                                    if (label.toLowerCase().includes('fan')) {
+                                        const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:6px; transform-origin: center;"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><circle cx="12" cy="12" r="2"/></svg>`;
+                                        if (swState === 'ON') {
+                                            iconHtml = `<span style="display:inline-flex; align-items:center; color:#2196F3; animation: spin 0.8s linear infinite;">${svgIcon}</span>`;
+                                        } else {
+                                            iconHtml = `<span style="display:inline-flex; align-items:center; opacity: 0.4;">${svgIcon}</span>`;
+                                        }
+                                    }
+                                    content += `<div class="sw-row multi-switch-row" data-swid="${swId}" data-swstate="${swState}">
+                                        <span style="display: flex; align-items: center;">${label} ${iconHtml}</span> 
+                                        <b>${swState}</b>
+                                    </div>`;
+                                });
+                                content += `</div>`;
+                            } else if (device.type === "camera") {
+                                const camImageName = (device.room || roomName).toLowerCase().replace(/\s+/g, '_') + '.png';
+                                content += `<div class="camera-box" style="background-image: url('assets/${camImageName}'); background-size: cover; background-position: center; border: 1px solid #333; color: white; text-shadow: 1px 1px 3px black; font-weight: bold;">
+                                    <div><span style="color: #ff4444; font-size: 14px; margin-right: 4px; animation: blink 1.5s infinite;">●</span> LIVE</div>
+                                </div>`;
+                            } else {
+                                card.classList.add("clickable");
+                                card.style.cursor = "pointer";
+                                card.addEventListener("click", () => {
+                                    const newState = isOn ? "OFF" : "ON";
+                                    set(ref(db, `floors/${floorId}/devices/${deviceId}/state`), newState);
+                                });
                             content += `<span class="status ${isOn ? 'on' : 'off'}">${device.state}</span>`;
                             if (device.type === "iron" && isOn) {
                                 content += `<div style="font-size:11px; margin-top:10px; color:#ff9800;">Safety cutoff active</div>`;
@@ -243,11 +314,33 @@
                                 });
                             });
                         }
-
+                        
                         grid.appendChild(card);
                     });
                     }
                     bgContainer.appendChild(overlay);
+                    
+                    if (hasFan) {
+                        const fanOverlay = document.createElement("div");
+                        fanOverlay.style.position = "absolute";
+                        if (fanIsExhaust) {
+                            fanOverlay.style.top = "2px";
+                            fanOverlay.style.left = "2px";
+                        } else {
+                            fanOverlay.style.top = "5%";
+                            fanOverlay.style.right = "5%";
+                        }
+                        fanOverlay.style.zIndex = "2";
+                        fanOverlay.style.pointerEvents = "none";
+                        
+                        const fanSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="#000" stroke="#ccc" stroke-width="0.5" style="transform-origin: center; ${isFanOn ? 'animation: spin 0.4s linear infinite;' : 'opacity: 0.6;'} filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.8));">
+                            <path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/>
+                            <circle cx="12" cy="12" r="2" fill="#555"/>
+                        </svg>`;
+                        fanOverlay.innerHTML = fanSvg;
+                        bgContainer.appendChild(fanOverlay);
+                    }
+                    
                     bgContainer.appendChild(grid);
                     roomSection.appendChild(bgContainer);
                     floorContainer.appendChild(roomSection);
