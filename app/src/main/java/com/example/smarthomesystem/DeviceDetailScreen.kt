@@ -30,13 +30,31 @@ fun DeviceDetailScreen(floorId: String, deviceId: String) {
         }
     }
 
-    // --- Auto-scheduling logic for current device ---
+    // --- Auto-scheduling and Safety Cutoff logic ---
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
+        }
+    }
+
     LaunchedEffect(device) {
         while (true) {
             val currentDevice = device ?: break
             val calendar = Calendar.getInstance()
             val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+            val adjustedNow = System.currentTimeMillis() + serverTimeOffset
 
+            // 1. Safety Cutoff for Iron
+            if (currentDevice.type.lowercase() == "iron" && currentDevice.state.uppercase() == "ON" && currentDevice.maxDurationSec > 0 && currentDevice.turnedOnAt > 0) {
+                val elapsed = (adjustedNow - currentDevice.turnedOnAt) / 1000
+                if (elapsed >= currentDevice.maxDurationSec) {
+                    FirebaseRepository.updateDeviceState(floorId, currentDevice.id, "OFF")
+                    FirebaseRepository.logUsage(currentDevice.id, currentDevice.name, "AUTO-OFF (Safety Cutoff)")
+                }
+            }
+
+            // 2. Scheduling for Light/Outlet
             val startParts = currentDevice.scheduleOn?.split(":")
             val endParts = currentDevice.scheduleOff?.split(":")
 
@@ -58,7 +76,7 @@ fun DeviceDetailScreen(floorId: String, deviceId: String) {
                     }
                 }
             }
-            delay(30000)
+            delay(2000) // Check more frequently for safety (every 2s instead of 30s)
         }
     }
 
