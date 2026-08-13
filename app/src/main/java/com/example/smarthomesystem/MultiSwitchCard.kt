@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,7 +20,12 @@ fun MultiSwitchCard(device: Device, onSwitchToggle: (switchId: String) -> Unit) 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            .fillMaxHeight()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF0F0F0F), Color(0xFF1A1A1A))
+                )
+            )
             .padding(24.dp)
     ) {
         Text(

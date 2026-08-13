@@ -17,7 +17,8 @@ object FirebaseRepository {
                 for (child in snapshot.children) {
                     val id = child.key ?: continue
                     val name = child.child("name").getValue(String::class.java) ?: id
-                    floors.add(Floor(id = id, name = name))
+                    val imageUrl = child.child("imageUrl").getValue(String::class.java) ?: ""
+                    floors.add(Floor(id = id, name = name, imageUrl = imageUrl))
                 }
                 onDataChanged(floors)
             }
@@ -30,6 +31,7 @@ object FirebaseRepository {
     fun addFloor(name: String) {
         val id = name.lowercase().replace(" ", "_")
         database.getReference("floors/$id/name").setValue(name)
+        database.getReference("floors/$id/imageUrl").setValue("https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&q=80&w=400")
     }
 
     fun addDevice(floorId: String, name: String, type: String, room: String) {
@@ -52,6 +54,17 @@ object FirebaseRepository {
                 println("Firebase Error: ${error.message}")
             }
         })
+    }
+
+    fun getDevicesOnce(floorId: String, onDataResult: (List<Device>) -> Unit) {
+        database.getReference("floors/$floorId/devices").get().addOnSuccessListener { snapshot ->
+            val devices = mutableListOf<Device>()
+            for (child in snapshot.children) {
+                val device = child.getValue(Device::class.java)?.copy(id = child.key ?: "", floorId = floorId)
+                if (device != null) devices.add(device)
+            }
+            onDataResult(devices)
+        }
     }
 
     fun getCachedDevice(floorId: String, deviceId: String): Device? {
@@ -92,6 +105,32 @@ object FirebaseRepository {
         database.getReference("usageLogs").push().setValue(log)
     }
 
+    fun addAlert(title: String, message: String, type: String = "info") {
+        val alertRef = database.getReference("alerts").push()
+        val alert = Alert(
+            id = alertRef.key ?: "",
+            title = title,
+            message = message,
+            timestamp = System.currentTimeMillis(),
+            type = type,
+            isRead = false
+        )
+        alertRef.setValue(alert)
+    }
+
+    fun listenToAlerts(onDataChanged: (List<Alert>) -> Unit) {
+        database.getReference("alerts").orderByChild("timestamp").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val alerts = mutableListOf<Alert>()
+                for (child in snapshot.children) {
+                    child.getValue(Alert::class.java)?.let { alerts.add(it) }
+                }
+                onDataChanged(alerts.reversed()) // Newest first
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
     fun listenToLogs(onDataChanged: (List<UsageLog>) -> Unit) {
         database.getReference("usageLogs").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -123,6 +162,7 @@ object FirebaseRepository {
         // 1. Ground floor (Kitchen, Living room, Garage, Porch, Utility)
         val groundId = "ground"
         floorsRef.child(groundId).child("name").setValue("Ground floor")
+        floorsRef.child(groundId).child("imageUrl").setValue("https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80&w=400")
         val groundDevices = floorsRef.child(groundId).child("devices")
         
         // Kitchen
@@ -148,6 +188,7 @@ object FirebaseRepository {
         // 2. First floor (Master Bedroom, Bedroom 2, Bathroom, Balcony)
         val firstId = "first"
         floorsRef.child(firstId).child("name").setValue("First floor")
+        floorsRef.child(firstId).child("imageUrl").setValue("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=400")
         val firstDevices = floorsRef.child(firstId).child("devices")
 
         // Master Bedroom
