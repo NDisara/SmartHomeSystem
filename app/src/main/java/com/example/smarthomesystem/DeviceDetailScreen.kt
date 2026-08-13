@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Brush
 import com.example.smarthomesystem.ui.theme.SecondaryText
 import java.util.*
 import android.app.TimePickerDialog
@@ -80,7 +81,15 @@ fun DeviceDetailScreen(floorId: String, deviceId: String) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF0F0F0F), Color(0xFF1A1A1A))
+                )
+            )
+    ) {
         device?.let { dev ->
             when (dev.type) {
                 "multiswitch" -> MultiSwitchCard(
@@ -113,7 +122,9 @@ fun DeviceDetailScreen(floorId: String, deviceId: String) {
                 )
                 else -> OutletControlCard(dev, floorId)
             }
-        } ?: Text("Loading device details...", modifier = Modifier.align(Alignment.Center), color = Color.White)
+        } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color.White)
+        }
     }
 }
 
