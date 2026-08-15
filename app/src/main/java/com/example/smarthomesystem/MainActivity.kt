@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // FirebaseRepository.addSampleData() // Removed to prevent resetting data on every restart
+        FirebaseRepository.addSampleData()
         enableEdgeToEdge()
         setContent {
             SmartHomeSystemTheme {
