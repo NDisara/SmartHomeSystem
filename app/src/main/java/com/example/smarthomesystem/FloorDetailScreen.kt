@@ -1,5 +1,6 @@
 package com.example.smarthomesystem
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Brush
 import java.util.Calendar
 import kotlinx.coroutines.delay
 
@@ -33,7 +37,7 @@ fun FloorDetailScreen(
     onDeviceClick: (String) -> Unit
 ) {
     var devices by remember { mutableStateOf<List<Device>>(emptyList()) }
-    var floorName by remember { mutableStateOf("Loading...") }
+    var currentFloor by remember { mutableStateOf<Floor?>(null) }
     var showAddDeviceDialog by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
@@ -42,7 +46,7 @@ fun FloorDetailScreen(
 
     LaunchedEffect(floorId) {
         FirebaseRepository.listenToFloors { floors ->
-            floorName = floors.find { it.id == floorId }?.name ?: "Unknown Floor"
+            currentFloor = floors.find { it.id == floorId }
         }
         FirebaseRepository.listenToDevices(floorId) { updatedDevices ->
             devices = updatedDevices
@@ -50,53 +54,14 @@ fun FloorDetailScreen(
     }
 
     // --- Safety Cutoff Timer Simulation ---
-    LaunchedEffect(devices) {
-        while (true) {
-            devices.forEach { device ->
-                if (device.type.lowercase() == "iron" && device.state.uppercase() == "ON" && device.maxDurationSec > 0 && device.turnedOnAt > 0) {
-                    val elapsed = (System.currentTimeMillis() - device.turnedOnAt) / 1000
-                    if (elapsed >= device.maxDurationSec) {
-                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
-                        FirebaseRepository.logUsage(device.id, device.name, "AUTO-OFF (Safety Cutoff)")
-                    }
-                }
-            }
-            delay(2000) // Check every 2 seconds for safety
+    var serverTimeOffset by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        FirebaseRepository.listenToServerTimeOffset { offset ->
+            serverTimeOffset = offset
         }
     }
 
-    // --- Auto-scheduled devices check (Improved for precise time) ---
-    LaunchedEffect(devices) {
-        while (true) {
-            val calendar = Calendar.getInstance()
-            val currentTotalMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
-
-            devices.forEach { device ->
-                val startParts = device.scheduleOn?.split(":")
-                val endParts = device.scheduleOff?.split(":")
-
-                if (startParts?.size == 2 && endParts?.size == 2) {
-                    val startMinutes = startParts[0].toIntOrNull()?.let { it * 60 + (startParts[1].toIntOrNull() ?: 0) }
-                    val endMinutes = endParts[0].toIntOrNull()?.let { it * 60 + (endParts[1].toIntOrNull() ?: 0) }
-
-                    if (startMinutes != null && endMinutes != null) {
-                        val shouldBeOn = if (startMinutes <= endMinutes) {
-                            currentTotalMinutes in startMinutes until endMinutes
-                        } else {
-                            currentTotalMinutes >= startMinutes || currentTotalMinutes < endMinutes
-                        }
-
-                        val targetState = if (shouldBeOn) "ON" else "OFF"
-                        if (device.state != targetState && (device.type == "light" || device.type == "outlet")) {
-                            FirebaseRepository.updateDeviceState(floorId, device.id, targetState)
-                            FirebaseRepository.logUsage(device.id, device.name, "AUTO-$targetState (Schedule)")
-                        }
-                    }
-                }
-            }
-            delay(30000) // Check every 30 seconds
-        }
-    }
+    // Logic moved to SafetyService for background persistence
 
     val activeRooms = devices.map { it.room }.filter { it.isNotBlank() }.distinct().sorted()
 
@@ -119,58 +84,108 @@ fun FloorDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Header Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = floorName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+            // Header Image Section
+            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                if (currentFloor?.imageUrl?.isNotBlank() == true) {
+                    AsyncImage(
+                        model = currentFloor?.imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                    Text(
-                        text = "${devices.size} devices · ${activeRooms.size} rooms",
-                        color = Color(0xFF888888),
-                        fontSize = 14.sp
-                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A)))
                 }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            if (devices.isEmpty()) {
-                EmptyFloorState { showAddDeviceDialog = true }
-            } else {
-                // Show floor plan grid for Ground floor or First floor
-                val isMainFloor = floorName.contains("Ground", ignoreCase = true) || 
-                                 floorName.contains("First", ignoreCase = true) ||
-                                 floorId == "ground"
                 
-                if (isMainFloor && activeRooms.isNotEmpty()) {
-                    FloorPlanGrid(floorName, devices, onDeviceClick)
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
-
-                // Device List Sections (Grouped by Actual Rooms)
-                activeRooms.forEach { roomName ->
-                    val roomDevices = devices.filter { it.room == roomName }
-                    RoomLabel(roomName)
-                    roomDevices.forEach { device ->
-                        DeviceItemRow(device, onClick = { onDeviceClick(device.id) })
+                // Gradient overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xFF121212))
+                            )
+                        )
+                )
+                
+                // Overlay Header
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentFloor?.name ?: "Loading...",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "${devices.size} devices · ${activeRooms.size} rooms",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 14.sp
+                        )
                     }
-                    Spacer(Modifier.height(24.dp))
+                    
+                    if (devices.any { it.state == "ON" }) {
+                        Button(
+                            onClick = {
+                                devices.forEach { device ->
+                                    if (device.state == "ON") {
+                                        FirebaseRepository.updateDeviceState(floorId, device.id, "OFF")
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text("All Off", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(32.dp))
+
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                if (devices.isEmpty()) {
+                    EmptyFloorState { showAddDeviceDialog = true }
+                } else {
+                    // Show floor plan grid for Ground floor or First floor
+                    val floorName = currentFloor?.name ?: ""
+                    val isMainFloor = floorName.contains("Ground", ignoreCase = true) || 
+                                     floorName.contains("First", ignoreCase = true) ||
+                                     floorId == "ground"
+                    
+                    if (isMainFloor && activeRooms.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        FloorPlanGrid(floorName, devices, onDeviceClick)
+                        Spacer(modifier = Modifier.height(32.dp))
+                    } else {
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    // Device List Sections (Grouped by Actual Rooms)
+                    activeRooms.forEach { roomName ->
+                        val roomDevices = devices.filter { it.room == roomName }
+                        RoomLabel(roomName)
+                        roomDevices.forEach { device ->
+                            DeviceItemRow(device, floorId = floorId, onClick = { onDeviceClick(device.id) })
+                        }
+                        Spacer(Modifier.height(24.dp))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
 
         // --- NEW: Using a Floating Action Button for better reliability ---
@@ -330,6 +345,7 @@ fun FloorPlanGrid(floorName: String, devices: List<Device>, onDeviceClick: (Stri
 @Composable
 fun DeviceItemRow(
     device: Device,
+    floorId: String,
     onClick: () -> Unit
 ) {
     val statusColor = getDeviceStatusColor(device)
@@ -363,34 +379,78 @@ fun DeviceItemRow(
             val remainingSec = (device.maxDurationSec - elapsedSec).coerceAtLeast(0)
             val mins = remainingSec / 60
             val secs = remainingSec % 60
-            String.format("On · %02d:%02d left", mins, secs)
+            String.format("%02d:%02d left", mins, secs)
         }
-        device.type.lowercase() == "camera" || device.state.uppercase() == "STREAMING" -> "Streaming"
-        else -> {
-            val baseStatus = when (device.state.uppercase()) {
-                "ON" -> "On"
-                "OFF" -> "Off"
-                else -> device.state.lowercase().replaceFirstChar { it.uppercase() }
-            }
-            if (device.scheduleOn != null && device.scheduleOff != null) {
-                "$baseStatus · ${device.scheduleOn} - ${device.scheduleOff}"
-            } else {
-                baseStatus
-            }
-        }
+        device.type.lowercase() == "camera" -> "Live"
+        else -> ""
     }
 
     Surface(
         onClick = onClick,
         color = if (isIronOn) Color(0xFF2D1B1B) else Color(0xFF1A1A1A),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+        shape = RoundedCornerShape(16.dp),
+        border = if (device.state == "ON" || device.state == "STREAMING") 
+            BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)) 
+            else BorderStroke(1.dp, Color(0xFF222222)),
+        modifier = Modifier.padding(vertical = 6.dp).fillMaxWidth()
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(deviceIcon, null, tint = statusColor, modifier = Modifier.size(20.dp))
+        Row(
+            modifier = Modifier.padding(16.dp), 
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(statusColor.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(deviceIcon, null, tint = statusColor, modifier = Modifier.size(20.dp))
+            }
+            
             Spacer(Modifier.width(16.dp))
-            Text(text = device.name, color = Color.White, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-            Text(text = statusText, color = statusColor, fontSize = 14.sp)
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = device.name, 
+                    color = Color.White, 
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (statusText.isNotBlank()) {
+                    Text(text = statusText, color = statusColor, fontSize = 12.sp)
+                } else if (device.type != "multiswitch" && device.type != "camera") {
+                    Text(
+                        text = if (device.state == "ON") "Running" else "Off", 
+                        color = if (device.state == "ON") statusColor else Color(0xFF666666),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            if (device.type == "light" || device.type == "outlet" || device.type == "iron") {
+                Switch(
+                    checked = device.state == "ON",
+                    onCheckedChange = { checked ->
+                        val newState = if (checked) "ON" else "OFF"
+                        // println("Switch clicked for ${device.id} in floor $floorId. New state: $newState")
+                        FirebaseRepository.updateDeviceState(floorId, device.id, newState)
+                        FirebaseRepository.logUsage(device.id, device.name, newState)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF4CAF50),
+                        uncheckedThumbColor = Color(0xFF888888),
+                        uncheckedTrackColor = Color(0xFF333333),
+                        uncheckedBorderColor = Color.Transparent
+                    )
+                )
+            } else {
+                Icon(
+                    Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF444444)
+                )
+            }
         }
     }
 }
